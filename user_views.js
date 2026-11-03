@@ -7,28 +7,99 @@ window.catSw = function (v) { $('#c1').style.display = v === 'ซ่อมแซ
 window.addRow = function () { $('#rows').insertAdjacentHTML('beforeend', rowH()) }
 
 function vReport() {
-  return `${lastNo ? `<div class="card" style="border-color:var(--pri)">ส่งเรื่องแล้ว เลขใบงานของคุณคือ <b>${esc(lastNo)}</b> <button type="button" style="padding:2px 8px; font-size:12px; margin-left:8px;" onclick="copyNo('${lastNo}', event)">📋 คัดลอก</button><br><span class="mut">เข้าไปดูสถานะได้ที่แท็บ "ประวัติของฉัน"</span></div>` : ''}
-<form class="card" onsubmit="submitT(event)"><b>ใบแจ้งซ่อม / ติดตั้ง / ต่อเติมอาคาร</b>
+  return `${lastNo ? `
+    <div class="card" style="border: 2px solid var(--nu-orange); background: var(--nu-orange-soft); padding: 18px 20px;">
+      <div class="row sp">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-size:24px;">🎉</span>
+          <div>
+            <b style="font-size:16px; color:var(--nu-navy);">ส่งเรื่องแจ้งซ่อมเรียบร้อยแล้ว!</b>
+            <div style="font-size:13px; color:var(--tx-soft); margin-top:2px;">เลขใบงานของคุณคือ: <b style="font-family:monospace; font-size:15px; color:var(--nu-orange); background:var(--card); padding:2px 8px; border-radius:6px; border:1px solid var(--bd);">${esc(lastNo)}</b></div>
+          </div>
+        </div>
+        <button type="button" class="p" style="padding:6px 14px; font-size:13px;" onclick="copyNo('${lastNo}', event)">📋 คัดลอกเลขใบงาน</button>
+      </div>
+      <div style="margin-top:12px; font-size:13px; color:var(--mut);">💡 ท่านสามารถติดตามความคืบหน้าของงานได้ที่แท็บ <b>"ประวัติของฉัน"</b> หรือค้นหาด้วยเลขใบงาน</div>
+    </div>` : ''}
 
-<div style="margin: 18px 0 10px; border-bottom: 1px solid var(--bd); padding-bottom: 4px; font-weight: bold; color: var(--pri);">👤 ข้อมูลผู้แจ้ง</div>
-<div class="g">
-<div><label>ชื่อผู้แจ้ง <span style="color:var(--bad)">*</span></label><input name="name" value="${esc(me?.role === 'reporter' && me.name !== me.email ? me.name : '')}" required placeholder="ชื่อ - นามสกุล"></div>
-<div><label>อีเมล <span style="color:var(--bad)">*</span></label><input name="email" type="email" value="${esc(me?.role === 'reporter' ? (me.email || '') : (localStorage.getItem('last_reporter_email') || ''))}" required placeholder="name@company.com" ${me?.role === 'reporter' && me.email ? 'readonly style="background:var(--chip);"' : ''}></div>
-<div><label>หน่วยงาน/บริษัท</label><input name="org" value="${esc(me?.org || '')}" placeholder="เช่น แผนกบัญชี, บ.คู่สัญญา"></div>
-<div><label>เบอร์ภายใน</label><input name="ext" value="${esc(me?.ext || '')}" placeholder="เช่น 1234"></div>
-<div><label>เบอร์มือถือ</label><input name="tel" type="tel" value="${esc(me?.tel || '')}" placeholder="เช่น 0812345678"></div></div>
+<form class="card" onsubmit="submitT(event)">
+  <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--bd); padding-bottom:12px; margin-bottom:16px;">
+    <div>
+      <b style="font-size:18px; color:var(--tx);">📝 ใบแจ้งซ่อมบำรุง / ติดตั้ง / ต่อเติมอาคาร</b>
+      <div class="mut" style="font-size:13px; margin-top:2px;">อุทยานวิทยาศาสตร์ มหาวิทยาลัยนเรศวร (อาคารมหาธรรมราชา)</div>
+    </div>
+    <span class="location-badge">Sci.Park@NU</span>
+  </div>
 
-<div style="margin: 18px 0 10px; border-bottom: 1px solid var(--bd); padding-bottom: 4px; font-weight: bold; color: var(--pri);">📍 สถานที่</div>
-<div class="g"><div><label>อาคาร</label><input name="bld" required placeholder="เช่น B, C"></div>
-<div><label>ชั้น</label><input name="flr" required></div><div><label>ห้อง / บริเวณ</label><input name="room" required placeholder="เช่น TC113.2, ลานจอดรถ, โถงทางเดิน"></div></div>
+  <div style="margin: 16px 0 10px; font-weight:600; color:var(--nu-orange); font-size:14px; display:flex; align-items:center; gap:6px;">
+    <span>👤 1. ข้อมูลผู้แจ้งซ่อม</span>
+  </div>
+  <div class="g">
+    <div><label>ชื่อ - นามสกุล ผู้แจ้ง <span style="color:var(--bad)">*</span></label><input name="name" value="${esc(me?.role === 'reporter' && me.name !== me.email ? me.name : '')}" required placeholder="เช่น นายสมชาย ใจดี"></div>
+    <div><label>อีเมลผู้แจ้ง <span style="color:var(--bad)">*</span></label><input name="email" type="email" value="${esc(me?.role === 'reporter' ? (me.email || '') : (localStorage.getItem('last_reporter_email') || ''))}" required placeholder="name@company.com" ${me?.role === 'reporter' && me.email ? 'readonly style="background:var(--chip);"' : ''}></div>
+    <div><label>หน่วยงาน / บริษัท / ฝ่าย</label><input name="org" value="${esc(me?.org || '')}" placeholder="เช่น บ.นวัตกรรมไทย, ฝ่ายบริหาร, บุคลากรทั่วไป"></div>
+    <div><label>เบอร์โทรศัพท์มือถือ <span style="color:var(--bad)">*</span></label><input name="tel" type="tel" value="${esc(me?.tel || '')}" required placeholder="เช่น 081-234-5678"></div>
+    <div><label>เบอร์โทรภายใน (ถ้ามี)</label><input name="ext" value="${esc(me?.ext || '')}" placeholder="เช่น 1234"></div>
+  </div>
 
-<div style="margin: 18px 0 10px; border-bottom: 1px solid var(--bd); padding-bottom: 4px; font-weight: bold; color: var(--pri);">🛠️ รายละเอียดงาน</div>
-<label>ประเภทการแจ้ง</label><div><label class="i"><input type="radio" name="cat" value="ซ่อมแซม" checked onchange="catSw(this.value)">ซ่อมแซม</label><label class="i"><input type="radio" name="cat" value="ติดตั้ง/ต่อเติม" onchange="catSw(this.value)">ติดตั้ง/ต่อเติม</label></div>
-<div id="c1"><label>ประเภทงานซ่อมแซม</label>${chk('t1', REP)}</div><div id="c2" style="display:none"><label>ประเภทงานติดตั้ง/ต่อเติม</label>${chk('t2', INS)}</div>
-<label>รายการ / อาการที่ชำรุด / หมายเลขครุภัณฑ์</label><div id="rows">${rowH() + rowH() + rowH()}</div><button type="button" onclick="addRow()">+ เพิ่มแถว</button>
-<label>แนบรูป (ไม่เกิน 4 รูป)</label><input type="file" name="pics" accept="image/*" multiple>
-<label class="i" style="margin-top:10px"><input type="checkbox" name="urgent">เร่งด่วน</label>
-<div style="margin-top:12px"><button class="p">ส่งเรื่อง</button></div></form>`}
+  <div style="margin: 22px 0 10px; font-weight:600; color:var(--nu-orange); font-size:14px; display:flex; align-items:center; gap:6px; border-top:1px solid var(--bd); padding-top:16px;">
+    <span>📍 2. สถานที่และบริเวณที่ชำรุด</span>
+  </div>
+  <div class="g">
+    <div><label>อาคาร / โซน <span style="color:var(--bad)">*</span></label><input name="bld" required placeholder="เช่น อาคารมหาธรรมราชา โซน B หรือ โซน C"></div>
+    <div><label>ชั้น <span style="color:var(--bad)">*</span></label><input name="flr" required placeholder="เช่น ชั้น 1, ชั้น 2"></div>
+    <div><label>ห้อง / บริเวณที่พบปัญหา <span style="color:var(--bad)">*</span></label><input name="room" required placeholder="เช่น ห้อง TC113.2, ลานจอดรถ, โถง Co-Working"></div>
+  </div>
+
+  <div style="margin: 22px 0 10px; font-weight:600; color:var(--nu-orange); font-size:14px; display:flex; align-items:center; gap:6px; border-top:1px solid var(--bd); padding-top:16px;">
+    <span>🛠️ 3. รายละเอียดงานแจ้งซ่อม</span>
+  </div>
+  
+  <label style="font-weight:600;">ประเภทการแจ้ง</label>
+  <div style="display:flex; gap:12px; margin-bottom:12px;">
+    <label class="box" style="flex:1; padding:10px; cursor:pointer; text-align:left; display:flex; align-items:center; gap:8px;">
+      <input type="radio" name="cat" value="ซ่อมแซม" checked onchange="catSw(this.value)" style="width:auto;">
+      <div><b>🔧 งานซ่อมแซม</b><div class="mut" style="font-size:11px;">แก้ไขอุปกรณ์ชำรุด เสียหาย</div></div>
+    </label>
+    <label class="box" style="flex:1; padding:10px; cursor:pointer; text-align:left; display:flex; align-items:center; gap:8px;">
+      <input type="radio" name="cat" value="ติดตั้ง/ต่อเติม" onchange="catSw(this.value)" style="width:auto;">
+      <div><b>🛠️ งานติดตั้ง / ต่อเติม</b><div class="mut" style="font-size:11px;">ติดตั้งอุปกรณ์ใหม่ ต่อเติมพื้นที่</div></div>
+    </label>
+  </div>
+
+  <div id="c1" style="background:var(--bg); border:1px solid var(--bd); border-radius:10px; padding:12px 14px; margin-bottom:14px;">
+    <label style="margin-top:0; font-weight:600;">หมวดหมู่งานซ่อมแซม (เลือกได้มากกว่า 1 ข้อ):</label>
+    ${chk('t1', REP)}
+  </div>
+  
+  <div id="c2" style="display:none; background:var(--bg); border:1px solid var(--bd); border-radius:10px; padding:12px 14px; margin-bottom:14px;">
+    <label style="margin-top:0; font-weight:600;">หมวดหมู่งานติดตั้ง/ต่อเติม (เลือกได้มากกว่า 1 ข้อ):</label>
+    ${chk('t2', INS)}
+  </div>
+
+  <label style="font-weight:600;">รายการ / อาการที่ชำรุด / รหัสครุภัณฑ์ (ถ้ามี)</label>
+  <div style="font-size:12px; color:var(--mut); margin-bottom:6px;">ระบุสิ่งของที่เสีย อาการ และรหัสครุภัณฑ์เพื่อความสะดวกรวดเร็วในการตรวจสอบ</div>
+  <div id="rows">${rowH() + rowH() + rowH()}</div>
+  <button type="button" style="margin-top:4px;" onclick="addRow()">➕ เพิ่มรายการอีกแถว</button>
+
+  <div style="margin-top:16px;">
+    <label style="font-weight:600;">แนบรูปภาพประกอบ (ไม่เกิน 4 รูป)</label>
+    <input type="file" name="pics" accept="image/*" multiple style="background:var(--bg);">
+    <span class="mut" style="font-size:12px;">* ระบบจะย่อขนาดรูปภาพให้อัตโนมัติ รองรับไฟล์ภาพจากมือถือทุกรุ่น</span>
+  </div>
+
+  <div style="background:var(--bad-soft); border:1px solid rgba(239,68,68,0.25); border-radius:10px; padding:10px 14px; margin-top:16px;">
+    <label class="i" style="color:var(--bad); margin:0; font-weight:600;">
+      <input type="checkbox" name="urgent">
+      🚨 เป็นงานเร่งด่วนมาก (ส่งผลกระทบต่อความปลอดภัยหรือระบบหลัก)
+    </label>
+  </div>
+
+  <div style="margin-top:20px; border-top:1px solid var(--bd); padding-top:16px;">
+    <button type="submit" class="p" style="width:100%; padding:12px; font-size:16px; font-weight:bold;">🚀 ส่งเรื่องแจ้งซ่อม</button>
+  </div>
+</form>`
+}
 
 window.submitT = async function (e) {
   e.preventDefault(); const f = new FormData(e.target), v = k => (f.get(k) || '').trim(), cat = f.get('cat');
@@ -143,7 +214,8 @@ window.quickTrack = async function (no, email) {
   lastTrackEmail = email;
   const { data, error } = await sb.rpc('track_ticket', { p_id: no, p_email: email });
   if (error) return toast(error.message); 
-  found = data; render();
+  found = Array.isArray(data) ? (data[0] || null) : (data || null);
+  render();
 }
 
 window.clearHistory = function() {
@@ -156,7 +228,9 @@ window.trackT = async function (e) {
   e.preventDefault(); const f = new FormData(e.target);
   lastTrackEmail = '';
   const { data, error } = await sb.rpc('track_ticket', { p_id: f.get('no') });
-  if (error) return toast(error.message); found = data; render()
+  if (error) return toast(error.message); 
+  found = Array.isArray(data) ? (data[0] || null) : (data || null);
+  render();
 }
 
 window.cancelMyTicket = async function (id) {

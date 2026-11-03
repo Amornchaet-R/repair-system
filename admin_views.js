@@ -1,7 +1,33 @@
 function vAll() {
   const L = T.filter(t => t.status === fil);
-  return `<div class="sum">${Object.keys(ST).map(s => `<div class="box ${fil === s ? 'sel' : ''}" onclick="setFil('${s}')"><b>${T.filter(t => t.status === s).length}</b><span class="mut">${ST[s][0]}</span></div>`).join('')}</div>
-<h3>${ST[fil][0]} (${L.length})</h3>${L.map(t => card(t, fil === 'deleted' ? '' : `<div class="row" style="margin-top:8px">${fil !== 'done' ? `<select id="a_${t.id}" style="flex:1;min-width:150px;width:auto"><option value="">ช่างส่วนกลาง</option>${techs.map(p => `<option value="${p.id}" ${p.id === t.tech_id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select><button onclick="assign('${t.id}')">มอบหมาย</button>` : ''}<button class="d" onclick="del('${t.id}')">ลบงาน</button></div>`)).join('') || '<div class="card mut">ไม่มีรายการ</div>'}`
+  return `
+  <div class="card" style="margin-bottom:12px; padding:14px 18px;">
+    <div style="font-size:16px; font-weight:bold; color:var(--tx); margin-bottom:10px;">📋 สรุปสถานะใบงานทั้งหมด</div>
+    <div class="sum">${Object.keys(ST).map(s => {
+      const count = T.filter(t => t.status === s).length;
+      return `<div class="box ${fil === s ? 'sel' : ''}" onclick="setFil('${s}')"><b>${count}</b><span class="mut" style="font-size:12px;">${ST[s][0]}</span></div>`;
+    }).join('')}</div>
+  </div>
+
+  <div style="display:flex; justify-content:space-between; align-items:center; margin:16px 0 8px;">
+    <h3 style="margin:0; font-size:17px; color:var(--tx); display:flex; align-items:center; gap:8px;">
+      <span>หมวด: <b>${ST[fil][0]}</b></span>
+      <span style="font-size:13px; background:var(--chip); color:var(--tx-soft); padding:2px 8px; border-radius:12px; font-weight:normal;">${L.length} รายการ</span>
+    </h3>
+  </div>
+
+  ${L.map(t => card(t, fil === 'deleted' ? '' : `
+    <div class="row sp" style="margin-top:12px; padding-top:10px; border-top:1px solid var(--bd);">
+      ${fil !== 'done' ? `
+        <div class="row" style="flex:1; min-width:260px; gap:8px;">
+          <select id="a_${t.id}" style="flex:1; min-width:160px; width:auto; font-size:13px; padding:6px 10px;">
+            <option value="">-- มอบหมาย: ช่างส่วนกลาง --</option>
+            ${techs.map(p => `<option value="${p.id}" ${p.id === t.tech_id ? 'selected' : ''}>🛠️ ${esc(p.name)}</option>`).join('')}
+          </select>
+          <button class="p" style="padding:6px 14px; font-size:13px;" onclick="assign('${t.id}')">บันทึกมอบหมาย</button>
+        </div>` : '<div></div>'}
+      <button class="d" style="padding:6px 12px; font-size:13px;" onclick="del('${t.id}')">🗑️ ลบใบงาน</button>
+    </div>`)).join('') || '<div class="card mut" style="text-align:center; padding:30px;">ไม่มีรายการในสถานะนี้</div>'}`
 }
 
 window.assign = async function (id) { 
@@ -72,21 +98,63 @@ function vStats() {
 }
 
 function vStock() {
-  const r = fT ? U.filter(u => u.tech_name === fT) : U, tn = [...new Set(U.map(u => u.tech_name))], tot = {}, byT = {};
-  r.forEach(u => { const k = u.name + ' (' + u.unit + ')'; const q = Number(u.qty) || 0; tot[k] = (tot[k] || 0) + q; (byT[u.tech_name] ??= {})[k] = (byT[u.tech_name][k] || 0) + q });
-  return `<div class="card row sp"><select style="width:auto" onchange="setFT(this.value)"><option value="">ช่างทั้งหมด</option>${tn.map(x => `<option ${x === fT ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select><button onclick="csv()">ดาวน์โหลด CSV</button></div>
-<div class="card scroll"><b>สรุปตามวัสดุ</b><table>${Object.entries(tot).map(([k, v]) => `<tr><td>${esc(k)}</td><td>${v}</td></tr>`).join('') || '<tr><td class="mut">ยังไม่มีการเบิก</td></tr>'}</table></div>
-<div class="card scroll"><b>สรุปตามช่าง</b><table>${Object.entries(byT).map(([t, m]) => `<tr><td>${esc(t)}</td><td>${Object.entries(m).map(([n, v]) => esc(n) + ' × ' + v).join('<br>')}</td></tr>`).join('')}</table></div>
-<div class="card scroll"><b>รายการทั้งหมด</b><table><tr><th>วันที่</th><th>ช่าง</th><th>ใบงาน</th><th>วัสดุ</th><th>จำนวน</th></tr>${r.map(u => `<tr><td>${fmt(u.created_at)}</td><td>${esc(u.tech_name)}</td><td>${esc(u.ticket_id)}</td><td>${esc(u.name)}</td><td>${u.qty} ${esc(u.unit)}</td></tr>`).join('')}</table></div>`
+  const r = fT ? U.filter(u => u.tech_name === fT) : U;
+  const tn = [...new Set(U.map(u => u.tech_name || 'ไม่ระบุช่าง'))];
+  const tot = {}, byT = {};
+  r.forEach(u => {
+    const k = u.name + ' (' + (u.unit || 'ชิ้น') + ')';
+    const q = Number(u.qty) || 0;
+    const techKey = u.tech_name || 'ไม่ระบุช่าง';
+    tot[k] = (tot[k] || 0) + q;
+    (byT[techKey] ??= {})[k] = (byT[techKey][k] || 0) + q;
+  });
+
+  return `
+  <div class="card row sp" style="align-items:center;">
+    <div>
+      <b style="font-size:16px;">📦 รายงานการเบิกใช้วัสดุอุปกรณ์</b>
+      <div class="mut" style="font-size:12px;">สรุปข้อมูลการเบิกจ่ายตามรายการและรายช่าง</div>
+    </div>
+    <div class="row" style="gap:8px;">
+      <select style="width:auto; padding:6px 12px; font-size:13px;" onchange="setFT(this.value)">
+        <option value="">ช่างทั้งหมด</option>
+        ${tn.map(x => `<option value="${esc(x)}" ${x === fT ? 'selected' : ''}>🛠️ ${esc(x)}</option>`).join('')}
+      </select>
+      <button class="p" style="padding:6px 14px; font-size:13px;" onclick="csv()">📥 ดาวน์โหลด CSV</button>
+    </div>
+  </div>
+
+  <div class="card scroll">
+    <div style="font-size:15px; font-weight:600; margin-bottom:8px; color:var(--tx);">📊 สรุปยอดรวมตามชนิดวัสดุ</div>
+    <table>
+      <tr><th>ชื่อวัสดุอุปกรณ์</th><th style="width:120px; text-align:right;">ยอดรวมที่เบิก</th></tr>
+      ${Object.entries(tot).sort((a,b) => b[1]-a[1]).map(([k, v]) => `<tr><td>${esc(k)}</td><td style="text-align:right; font-weight:bold; color:var(--nu-orange); font-size:15px;">${v}</td></tr>`).join('') || '<tr><td colspan="2" class="mut" style="text-align:center; padding:18px;">ยังไม่มีข้อมูลการเบิกจ่าย</td></tr>'}
+    </table>
+  </div>
+
+  <div class="card scroll">
+    <div style="font-size:15px; font-weight:600; margin-bottom:8px; color:var(--tx);">👨‍🔧 สรุปตามช่างผู้เบิก</div>
+    <table>
+      <tr><th style="width:200px;">ชื่อช่าง</th><th>รายการวัสดุที่เบิก</th></tr>
+      ${Object.entries(byT).map(([t, m]) => `<tr><td style="font-weight:600;">🛠️ ${esc(t)}</td><td>${Object.entries(m).map(([n, v]) => `<span style="display:inline-block; background:var(--chip); padding:2px 8px; border-radius:6px; margin:2px 4px 2px 0; font-size:12px;">${esc(n)} × <b>${v}</b></span>`).join('')}</td></tr>`).join('') || '<tr><td colspan="2" class="mut" style="text-align:center; padding:18px;">ยังไม่มีข้อมูลการเบิกจ่าย</td></tr>'}
+    </table>
+  </div>
+
+  <div class="card scroll">
+    <div style="font-size:15px; font-weight:600; margin-bottom:8px; color:var(--tx);">📋 ประวัติการเบิกทั้งหมด (${r.length} รายการ)</div>
+    <table>
+      <tr><th>วัน-เวลา</th><th>ช่างผู้เบิก</th><th>รหัสใบงาน</th><th>วัสดุอุปกรณ์</th><th>จำนวน</th></tr>
+      ${r.map(u => `<tr><td style="font-size:12px; color:var(--mut);">${fmt(u.created_at)}</td><td><b>${esc(u.tech_name || 'ไม่ระบุ')}</b></td><td><span style="font-family:monospace; font-size:12px;">${esc(u.ticket_id)}</span></td><td>${esc(u.name)}</td><td style="font-weight:bold; color:var(--nu-orange);">${u.qty} ${esc(u.unit || 'ชิ้น')}</td></tr>`).join('') || '<tr><td colspan="5" class="mut" style="text-align:center; padding:18px;">ยังไม่มีประวัติการเบิก</td></tr>'}
+    </table>
+  </div>`;
 }
 
 window.csv = function () {
-  const c = s => '"' + String(s ?? '').replace(/"/g, '""') + '"', r = fT ? U.filter(u => u.tech_name === fT) : U;
+  const c = s => '"' + String(s ?? '').replace(/"/g, '""') + '"';
+  const r = fT ? U.filter(u => u.tech_name === fT) : U;
   const txt = '\uFEFFวันที่,ช่าง,ใบงาน,วัสดุ,จำนวน,หน่วย\n' + r.map(u => [fmt(u.created_at), u.tech_name, u.ticket_id, u.name, u.qty, u.unit].map(c).join(',')).join('\n');
-  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], { type: 'text/csv' })); a.download = 'material-usage.csv'; a.click();
-}
-
-function vGear() {
-  const M = [['reporter', 'ผู้แจ้ง', 'ไม่ต้องล็อกอิน (แจ้งซ่อม, ประวัติ, ค้นหา)'], ['tech', 'ช่าง', 'งานกลาง รับงาน อัปเดตงาน เบิกวัสดุ'], ['admin', 'แอดมิน (พี่ผึ้ง)', 'งานทั้งหมด สถิติช่าง รายงานวัสดุ']];
-  return `<div class="card"><b>⚙️ โหมดทดสอบ</b><p class="mut">เลือกบทบาทเพื่อดูหน้าจอของบทบาทนั้น ไม่ต้องล็อกอิน</p></div>` + M.map(([k, n, d]) => `<div class="card row sp" style="${dm === k ? 'border-color:var(--pri)' : ''}"><div><b>${n}</b><div class="mut">${d}</div></div><button class="${dm === k ? 'on' : 'p'}" onclick="setDm('${k}')">${dm === k ? 'กำลังใช้อยู่' : 'เลือก'}</button></div>`).join('');
-}
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([txt], { type: 'text/csv' }));
+  a.download = 'scipark-material-usage.csv';
+  a.click();
+};

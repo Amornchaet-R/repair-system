@@ -2,9 +2,19 @@ const sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt = t => t ? new Date(t).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) : '';
-const toast = m => { const t = $('#toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(window._t); window._t = setTimeout(() => t.style.display = 'none', 4000) };
+const toast = m => { const t = $('#toast'); if (t) { t.textContent = m; t.style.display = 'block'; clearTimeout(window._t); window._t = setTimeout(() => t.style.display = 'none', 4000); } };
+window.$ = $;
+window.esc = esc;
+window.fmt = fmt;
+window.toast = toast;
 
-const ST = { accepted: ['รับเรื่อง', 'var(--pri)'], doing: ['กำลังดำเนินการ', '#e67e22'], done: ['เสร็จสิ้น', 'var(--ok)'], deleted: ['ยกเลิก/ลบ', 'var(--bad)'] };
+const ST = { 
+  accepted: ['รับเรื่อง', 'var(--info)'], 
+  doing: ['กำลังดำเนินการ', 'var(--nu-orange)'], 
+  done: ['เสร็จสิ้น', 'var(--ok)'], 
+  deleted: ['ยกเลิก/ลบ', 'var(--bad)'] 
+};
+window.logh = (t, s) => [...(t?.history || []), { s, at: Date.now() }];
 const REP = ['ระบบปรับอากาศ', 'เครื่องจักร', 'ระบบไฟฟ้ากำลัง', 'ระบบแสงสว่าง', 'ระบบประปา', 'ระบบ Internet', 'ระบบน้ำบริสุทธิ์ (DI)', 'ฝ้าเพดาน', 'ประตู', 'หน้าต่าง', 'ห้องน้ำ', 'พื้น', 'อื่น ๆ'];
 const INS = ['ติดตั้งเครื่องจักร', 'ติดตั้งระบบไฟฟ้ากำลัง', 'ติดตั้งระบบแสงสว่าง', 'ติดตั้งระบบประปา', 'ติดตั้งระบบ Internet', 'ต่อเติมอาคาร', 'อื่น ๆ'];
 const MATS = ['หลอดไฟ LED', 'บัลลาสต์/สตาร์ทเตอร์', 'สายไฟ', 'เบรกเกอร์', 'ก๊อกน้ำ', 'ท่อ PVC', 'น้ำยาแอร์', 'เทปพันสายไฟ', 'อื่นๆ'];
@@ -28,10 +38,21 @@ window.setHFil = function(f) { hFil = f; render(); }
 window.setStatM = function(m) { statM = m; render(); }
 
 window.copyNo = function(no, e) {
-  if(e) e.stopPropagation();
-  navigator.clipboard.writeText(no);
-  toast('คัดลอก ' + no + ' แล้ว!');
-}
+  if (e) e.stopPropagation();
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(no);
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = no;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+  }
+  toast('คัดลอกเลข ' + no + ' แล้ว!');
+};
 
 window.loadHistoryData = async function() {
   const email = (me && me.role === 'reporter' ? me.email : '') || localStorage.getItem('last_reporter_email');
@@ -63,8 +84,9 @@ window.loadHistoryData = async function() {
   const results = await Promise.all(promises);
   let updated = false;
   results.forEach((data, i) => {
-      if (data && myT[i].status !== data.status) {
-          myT[i].status = data.status; 
+      const item = Array.isArray(data) ? data[0] : data;
+      if (item && myT[i].status !== item.status) {
+          myT[i].status = item.status; 
           updated = true;
       }
   });
@@ -314,21 +336,50 @@ window.zoom = function (p) { $('#dlg').innerHTML = `<img src="${url(p)}" style="
 const card = (t, x = '') => {
   let stName = ST[t.status] ? ST[t.status][0] : 'ไม่ระบุ';
   let stColor = ST[t.status] ? ST[t.status][1] : 'var(--mut)';
+  let stBg = ST[t.status] ? `var(--${t.status === 'accepted' ? 'info' : t.status === 'doing' ? 'warn' : t.status === 'done' ? 'ok' : 'bad'}-soft)` : 'var(--chip)';
   if (t.status === 'done') {
     const isInstall = t.done_type === 'ติดตั้ง/ต่อเติม' || (!t.done_type && t.cat === 'ติดตั้ง/ต่อเติม');
     stName = isInstall ? 'ติดตั้งเสร็จสิ้น' : 'ซ่อมเสร็จสิ้น';
-    stColor = isInstall ? '#2980b9' : 'var(--ok)';
+    stColor = isInstall ? '#0284c7' : 'var(--ok)';
   }
-  return `<div class="card"><div class="row sp"><div><b>${esc(t.id)}</b> <span onclick="copyNo('${t.id}', event)" style="cursor:pointer; font-size:14px; margin-left:4px" title="คัดลอกเลขใบงาน">📋</span></div><span class="st" style="color:${stColor}">${stName}</span></div>
-<div>อาคาร ${esc(t.bld)} ชั้น ${esc(t.flr)} ห้อง/บริเวณ ${esc(t.room)}${t.urgent ? ' <b style="color:var(--bad)">ด่วน</b>' : ''}</div>
-<div class="mut">${esc((t.types || []).join(', '))}</div>
-<div class="mut">${(t.items || []).map(i => esc(i.item) + (i.sym ? ' – ' + esc(i.sym) : '') + (i.asset ? ' [' + esc(i.asset) + ']' : '')).join(' | ')}</div>
-<div class="mut">${t.name ? `แจ้งโดย ${esc(t.name)} ${esc(t.tel || '')} ${t.ext ? 'ภายใน ' + esc(t.ext) : ''} · ` : ''}${fmt(t.created_at)}</div>
-<div class="mut">ช่าง: ${t.tech_name ? esc(t.tech_name) : 'ช่างส่วนกลาง (รอรับงาน)'}</div>
-${t.note ? `<div class="${t.blocked ? 'blk' : 'mut'}">${t.blocked ? 'ติดปัญหา: ' : 'หมายเหตุ: '}${esc(t.note)}</div>` : ''}
-${ph(t.photos, 'รูปประกอบการแจ้ง')}${ph(t.done_photos, 'รูปหลังดำเนินการ')}
-${t.status === 'deleted' ? `<div class="blk">ยกเลิก/ลบโดย ${t.deleted_by ? ' (' + esc(t.deleted_by) + ')' : ''} · ${fmt(t.deleted_at)}</div>` : ''}
-${t.status === 'done' ? `<div class="mut">${t.cannot ? '<b style="color:var(--bad)">ไม่สามารถดำเนินการได้</b> · ' : ''}${t.budget ? 'งบประมาณ ' + t.budget + ' บาท · ' : ''}${t.done_type ? `[${t.done_type === 'ติดตั้ง/ต่อเติม' ? 'ติดตั้งเสร็จ' : 'ซ่อมเสร็จ'}] ` : ''}เสร็จ ${fmt(t.done_at)}</div>` : ''}${x}</div>`;
+  const borderLeftStyle = t.urgent ? 'border-left: 4px solid var(--bad);' : `border-left: 4px solid ${stColor};`;
+  
+  return `<div class="card" style="${borderLeftStyle}">
+    <div class="row sp" style="margin-bottom:10px;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-family:monospace; font-size:15px; font-weight:700; color:var(--tx);">${esc(t.id)}</span>
+        <button type="button" onclick="copyNo('${t.id}', event)" style="padding:2px 7px; font-size:11px; border-radius:6px; background:var(--chip); border:none;" title="คัดลอกเลขใบงาน">📋 คัดลอก</button>
+        ${t.urgent ? '<span style="background:var(--bad); color:#fff; font-size:11px; font-weight:bold; padding:2px 8px; border-radius:12px; display:inline-flex; align-items:center; gap:3px;">🔥 ด่วน</span>' : ''}
+      </div>
+      <span class="st" style="color:${stColor}; background:${stBg}; font-size:12px;">${stName}</span>
+    </div>
+
+    <div style="font-size:14px; font-weight:600; color:var(--tx); margin-bottom:8px; display:flex; align-items:center; flex-wrap:wrap; gap:6px;">
+      <span style="background:var(--chip); padding:3px 10px; border-radius:6px; font-size:13px;">🏢 อาคาร ${esc(t.bld)}</span>
+      <span style="background:var(--chip); padding:3px 10px; border-radius:6px; font-size:13px;">ชั้น ${esc(t.flr)}</span>
+      <span style="background:var(--chip); padding:3px 10px; border-radius:6px; font-size:13px;">ห้อง/บริเวณ: <b>${esc(t.room)}</b></span>
+    </div>
+
+    ${t.types?.length ? `<div style="margin-bottom:8px; display:flex; flex-wrap:wrap; gap:4px;">
+      ${t.types.map(tp => `<span style="font-size:12px; background:var(--nu-orange-soft); color:var(--nu-orange); border:1px solid rgba(243,112,33,0.25); padding:2px 10px; border-radius:12px;">🏷️ ${esc(tp)}</span>`).join('')}
+    </div>` : ''}
+
+    ${t.items?.length ? `<div style="background:var(--bg); border:1px solid var(--bd); border-radius:10px; padding:10px 14px; margin:8px 0; font-size:13px;">
+      ${t.items.map(i => `<div style="margin:3px 0;">• <b>${esc(i.item)}</b> ${i.sym ? '– <span style="color:var(--tx-soft)">' + esc(i.sym) + '</span>' : ''} ${i.asset ? '<span class="mut" style="font-size:11px;">[รหัส: ' + esc(i.asset) + ']</span>' : ''}</div>`).join('')}
+    </div>` : ''}
+
+    <div class="row sp" style="font-size:12px; color:var(--mut); margin-top:10px; padding-top:8px; border-top:1px dashed var(--bd);">
+      <div>${t.name ? `👤 แจ้งโดย <b>${esc(t.name)}</b> ${esc(t.tel || '')} ${t.ext ? 'ภายใน ' + esc(t.ext) : ''} · ` : ''}🕒 ${fmt(t.created_at)}</div>
+      <div>ช่างผู้รับผิดชอบ: <b style="color:var(--tx);">${t.tech_name ? '🛠️ ' + esc(t.tech_name) : '<span style="color:var(--mut); font-weight:normal;">(รอช่างรับงาน)</span>'}</b></div>
+    </div>
+
+    ${t.note ? `<div class="${t.blocked ? 'blk' : 'mut'}" style="margin-top:8px;">${t.blocked ? '⚠️ ติดปัญหา: ' : '📝 หมายเหตุ: '}${esc(t.note)}</div>` : ''}
+    ${ph(t.photos, '📷 รูปประกอบการแจ้ง')}
+    ${ph(t.done_photos, '✨ รูปผลงานหลังดำเนินการ')}
+    ${t.status === 'deleted' ? `<div class="blk" style="margin-top:8px;">❌ ยกเลิก/ลบโดย ${t.deleted_by ? ' (' + esc(t.deleted_by) + ')' : ''} · ${fmt(t.deleted_at)}</div>` : ''}
+    ${t.status === 'done' ? `<div style="background:var(--ok-soft); border-left:3px solid var(--ok); padding:8px 12px; border-radius:0 8px 8px 0; font-size:13px; color:var(--ok); margin-top:8px;">${t.cannot ? '<b style="color:var(--bad)">ไม่สามารถดำเนินการได้</b> · ' : '<b>ดำเนินการเสร็จสิ้น</b> · '}${t.budget ? 'งบประมาณ ' + t.budget + ' บาท · ' : ''}${t.done_type ? `[${t.done_type === 'ติดตั้ง/ต่อเติม' ? 'ติดตั้งเสร็จ' : 'ซ่อมเสร็จ'}] ` : ''}เสร็จ ${fmt(t.done_at)}</div>` : ''}
+    ${x}
+  </div>`;
 };
 
 function steps(t) {

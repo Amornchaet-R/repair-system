@@ -205,23 +205,32 @@ const vLogin = () => {
 
   // View สำหรับการเข้าสู่ระบบตามบทบาท (Login View)
   return `
-  <div style="max-width: 600px; margin: 20px auto 40px;">
-    <div class="card" style="text-align: center; padding: 24px 20px;">
-      <h2 style="margin: 0 0 6px; font-size: 22px; color: var(--pri);">🔧 เข้าสู่ระบบแจ้งซ่อม</h2>
-      <p class="mut" style="margin: 0 0 20px; font-size: 14px;">กรุณาเลือกบทบาทของคุณ เพื่อเข้าใช้งานและล็อคสิทธิ์ตามหน้าที่</p>
+  <div style="max-width: 600px; margin: 10px auto 40px;">
+    <div class="card" style="padding: 26px 24px;">
+      <div style="text-align: center; margin-bottom: 22px;">
+        <div style="display:inline-flex; align-items:center; gap:8px; background:var(--nu-orange-soft); padding:4px 12px; border-radius:var(--radius-full); margin-bottom:10px; border:1px solid rgba(243,112,33,0.3);">
+          <span style="font-size:14px;">🏛️</span>
+          <span style="font-size:12px; font-weight:600; color:var(--nu-orange);">อุทยานวิทยาศาสตร์ มหาวิทยาลัยนเรศวร</span>
+        </div>
+        <h2 style="margin: 0 0 6px; font-size: 22px; color: var(--tx);">เข้าสู่ระบบแจ้งซ่อมและบริการอาคาร</h2>
+        <p class="mut" style="margin: 0; font-size: 13px;">อาคารมหาธรรมราชา • โปรดเลือกบทบาทการเข้าใช้งาน</p>
+      </div>
       
-      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 20px;">
-        <button type="button" class="${loginRole === 'reporter' ? 'on' : ''}" onclick="setLoginRole('reporter')" style="padding: 12px 6px; font-size: 13px; font-weight: bold; display: flex; flex-direction: column; align-items: center; gap: 4px;">
-          <span style="font-size: 24px;">👤</span>
-          ผู้แจ้งซ่อม
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 22px;">
+        <button type="button" class="${loginRole === 'reporter' ? 'on' : ''}" onclick="setLoginRole('reporter')" style="padding: 14px 6px; font-size: 13px; font-weight: 600; display: flex; flex-direction: column; align-items: center; gap: 6px; border-radius:12px;">
+          <span style="font-size: 26px;">👤</span>
+          <span>ผู้แจ้งซ่อม</span>
+          <span style="font-size:11px; font-weight:normal; opacity:0.85;">(ใช้อีเมล)</span>
         </button>
-        <button type="button" class="${loginRole === 'tech' ? 'on' : ''}" onclick="setLoginRole('tech')" style="padding: 12px 6px; font-size: 13px; font-weight: bold; display: flex; flex-direction: column; align-items: center; gap: 4px;">
-          <span style="font-size: 24px;">🛠️</span>
-          ช่างซ่อมบำรุง
+        <button type="button" class="${loginRole === 'tech' ? 'on' : ''}" onclick="setLoginRole('tech')" style="padding: 14px 6px; font-size: 13px; font-weight: 600; display: flex; flex-direction: column; align-items: center; gap: 6px; border-radius:12px;">
+          <span style="font-size: 26px;">🛠️</span>
+          <span>ช่างซ่อมบำรุง</span>
+          <span style="font-size:11px; font-weight:normal; opacity:0.85;">(งานช่าง)</span>
         </button>
-        <button type="button" class="${loginRole === 'admin' ? 'on' : ''}" onclick="setLoginRole('admin')" style="padding: 12px 6px; font-size: 13px; font-weight: bold; display: flex; flex-direction: column; align-items: center; gap: 4px;">
-          <span style="font-size: 24px;">👑</span>
-          ผู้ดูแลระบบ
+        <button type="button" class="${loginRole === 'admin' ? 'on' : ''}" onclick="setLoginRole('admin')" style="padding: 14px 6px; font-size: 13px; font-weight: 600; display: flex; flex-direction: column; align-items: center; gap: 6px; border-radius:12px;">
+          <span style="font-size: 26px;">👑</span>
+          <span>ผู้ดูแลระบบ</span>
+          <span style="font-size:11px; font-weight:normal; opacity:0.85;">(Admin)</span>
         </button>
       </div>
 
@@ -291,7 +300,7 @@ const vLogin = () => {
     </div>
   </div>`;
 };
-const logh = (t, s) => [...(t.history || []), { s, at: Date.now() }];
+window.logh = (t, s) => [...(t?.history || []), { s, at: Date.now() }];
 const vPool = () => {
   const a = T.filter(t => t.status === 'accepted' && !t.tech_name).sort((x, y) => (y.urgent - x.urgent));
   return `<div class="card"><b>งานกลางที่รอช่างรับ</b> <span class="mut">${a.length} งาน</span></div>${a.map(t => card(t, `<div style="margin-top:8px"><button class="p" onclick="claim('${t.id}')">รับงานนี้</button> <button onclick="openNote('${t.id}')">หมายเหตุ</button></div>`)).join('') || '<div class="card mut">ไม่มีงานรอรับ</div>'}`

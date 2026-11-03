@@ -3,20 +3,58 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ระบบแจ้งซ่อม</title>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600&display=swap">
+  <title>ระบบแจ้งซ่อมและบริการอาคาร | อุทยานวิทยาศาสตร์ มหาวิทยาลัยนเรศวร</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header>
-    <h1>🔧 ระบบแจ้งซ่อม</h1>
-    <nav id="nav"></nav>
+  <div class="top-announcement">
+    <div class="container top-bar-content">
+      <div class="top-org-name">
+        <span class="org-icon">🏛️</span> อุทยานวิทยาศาสตร์ มหาวิทยาลัยนเรศวร • Naresuan University Science Park
+      </div>
+      <div class="location-badge">📍 อาคารมหาธรรมราชา</div>
+    </div>
+  </div>
+
+  <header class="app-header">
+    <div class="container header-container">
+      <div class="brand-wrapper">
+        <div class="brand-logo">
+          <div class="logo-box">
+            <span class="logo-text-sp">SP</span>
+          </div>
+        </div>
+        <div class="brand-details">
+          <div class="brand-title">
+            <span class="title-scipark">Sci.Park</span><span class="title-nu">@NU</span>
+            <span class="brand-badge">E-Service</span>
+          </div>
+          <div class="brand-sub">ระบบแจ้งซ่อมบำรุงและบริการอาคารสถานที่ • อาคารมหาธรรมราชา</div>
+        </div>
+      </div>
+      <nav id="nav"></nav>
+    </div>
   </header>
   
-  <main id="app"></main>
+  <main id="app" class="container"></main>
   
   <dialog id="dlg"></dialog>
   <div id="toast"></div>
+
+  <footer class="app-footer">
+    <div class="container footer-content">
+      <div class="footer-brand">
+        <b>อุทยานวิทยาศาสตร์ มหาวิทยาลัยนเรศวร (Sci.Park@NU)</b>
+        <span>อาคารมหาธรรมราชา มหาวิทยาลัยนเรศวร ต.ท่าโพธิ์ อ.เมือง จ.พิษณุโลก 65000</span>
+      </div>
+      <div class="footer-links">
+        <a href="https://scipark.nu.ac.th/" target="_blank" rel="noopener">🌐 เว็บไซต์อุทยานฯ scipark.nu.ac.th</a>
+      </div>
+    </div>
+  </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
   <script src="config.js"></script>
