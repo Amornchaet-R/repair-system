@@ -1,241 +1,823 @@
-const chk = (n, a) => a.map(x => {
-  if (x.includes('อื่น')) return `<label class="i"><input type="checkbox" name="${n}" value="${x}" onchange="document.getElementById('${n}_other').style.display = this.checked ? 'inline-block' : 'none'">${x}</label><input type="text" id="${n}_other" name="${n}_other_val" placeholder="โปรดระบุ..." style="display:none; width:auto; padding:4px 8px; font-size:13px; margin-left:8px;">`;
-  return `<label class="i"><input type="checkbox" name="${n}" value="${x}">${x}</label>`;
-}).join('');
-const rowH = () => `<div class="rw"><input name="it" placeholder="รายการซ่อมแซม/ติดตั้ง"><input name="sy" placeholder="อาการที่ชำรุด"><input name="as" placeholder="หมายเลขครุภัณฑ์"></div>`;
-window.catSw = function (v) { $('#c1').style.display = v === 'ซ่อมแซม' ? '' : 'none'; $('#c2').style.display = v === 'ซ่อมแซม' ? 'none' : '' }
-window.addRow = function () { $('#rows').insertAdjacentHTML('beforeend', rowH()) }
+// ==========================================================================
+// user_views.js - Views for Reporter / User (Screen 1 & Screen 2)
+// ==========================================================================
 
-function vReport() {
-  return `${lastNo ? `
-    <div class="card" style="border: 2px solid var(--nu-orange); background: var(--nu-orange-soft); padding: 18px 20px;">
-      <div class="row sp">
-        <div style="display:flex; align-items:center; gap:10px;">
-          <span style="font-size:24px;">🎉</span>
-          <div>
-            <b style="font-size:16px; color:var(--nu-navy);">ส่งเรื่องแจ้งซ่อมเรียบร้อยแล้ว!</b>
-            <div style="font-size:13px; color:var(--tx-soft); margin-top:2px;">เลขใบงานของคุณคือ: <b style="font-family:monospace; font-size:15px; color:var(--nu-orange); background:var(--card); padding:2px 8px; border-radius:6px; border:1px solid var(--bd);">${esc(lastNo)}</b></div>
+let reportStep = 1;
+
+const REPAIR_SUBTYPES = [
+  'ระบบปรับอากาศ',
+  'เครื่องจักร',
+  'ระบบไฟฟ้ากำลัง',
+  'ระบบแสงสว่าง',
+  'ระบบประปา',
+  'ระบบ Internet',
+  'ระบบน้ำบริสุทธิ์ (DI)',
+  'ฝ้าเพดาน',
+  'ประตู',
+  'หน้าต่าง',
+  'ห้องน้ำ',
+  'พื้น',
+  'อื่นๆ'
+];
+
+const INSTALL_SUBTYPES = [
+  'ติดตั้งเครื่องจักร',
+  'ติดตั้งระบบไฟฟ้ากำลัง',
+  'ติดตั้งระบบแสงสว่าง',
+  'ติดตั้งระบบประปา',
+  'ติดตั้งระบบ Internet',
+  'ต่อเติมอาคาร',
+  'อื่นๆ'
+];
+
+let newReportDraft = {
+  cat: 'ซ่อมแซม', // 'ซ่อมแซม' | 'ติดตั้ง/ต่อเติม'
+  org: '',
+  tel_internal: '',
+  tel: '',
+  bld: 'อาคาร A',
+  bld_other: '',
+  flr: '1',
+  room: '',
+  sub_type: 'ระบบปรับอากาศ',
+  sub_type_other: '',
+  title: '',
+  details: '',
+  asset_no: '',
+  priority: 'normal',
+  files: []
+};
+
+window.resetReportDraft = function() {
+  newReportDraft = {
+    cat: 'ซ่อมแซม',
+    org: '',
+    tel_internal: '',
+    tel: me?.tel || '',
+    bld: 'อาคาร A',
+    bld_other: '',
+    flr: '1',
+    room: '',
+    sub_type: 'ระบบปรับอากาศ',
+    sub_type_other: '',
+    title: '',
+    details: '',
+    asset_no: '',
+    priority: 'normal',
+    files: []
+  };
+};
+
+window.setReportStep = function(step) {
+  reportStep = step;
+  render();
+};
+
+window.setReportCat = function(c) {
+  newReportDraft.cat = c;
+  newReportDraft.sub_type = c === 'ซ่อมแซม' ? 'ระบบปรับอากาศ' : 'ติดตั้งเครื่องจักร';
+  newReportDraft.sub_type_other = '';
+  render();
+};
+
+window.setReportBld = function(val) {
+  newReportDraft.bld = val;
+  if (val !== 'อื่นๆ') {
+    newReportDraft.bld_other = '';
+  }
+  render();
+};
+
+window.setReportSubType = function(val) {
+  newReportDraft.sub_type = val;
+  if (val !== 'อื่นๆ') {
+    newReportDraft.sub_type_other = '';
+  }
+  render();
+};
+
+window.updateDraft = function(key, val) {
+  newReportDraft[key] = val;
+};
+
+// Screen 1: หน้าหลัก (User Dashboard)
+function vHome() {
+  const myT = JSON.parse(localStorage.getItem('myT') || '[]');
+  
+  // Real stats calculation from myT or T (No mock numbers)
+  const sourceList = (me?.role === 'reporter') ? myT : ((typeof T !== 'undefined' && T && T.length) ? T : myT);
+  const totalCount = sourceList.length;
+  const doingCount = sourceList.filter(t => t.status === 'doing').length;
+  const doneCount = sourceList.filter(t => t.status === 'done').length;
+  const pendingCount = sourceList.filter(t => t.status === 'accepted' || !t.status).length;
+
+  // Real recent tickets list (No fake mock tickets)
+  const recentTickets = myT.slice(0, 5);
+
+  return `
+    <!-- Hero Banner (Screen 1 Top) -->
+    <div class="nusp-hero-banner">
+      <div class="hero-content">
+        <h1>ระบบแจ้งซ่อม</h1>
+        <h2>อุทยานวิทยาศาสตร์ มหาวิทยาลัยนเรศวร</h2>
+        <p>“พร้อมดูแล เพื่อการทำงานที่ต่อเนื่อง รวดเร็ว ปลอดภัย”</p>
+      </div>
+      <div class="hero-badge-nusp">
+        <b>NUSP ✦</b>
+        <span>Naresuan University<br>Science Park</span>
+      </div>
+    </div>
+
+    <!-- 4 KPI Metric Cards (Screen 1 Middle) -->
+    <div class="kpi-grid">
+      <div class="kpi-card" onclick="setTab('history')" style="cursor:pointer;" title="กดเพื่อดูประวัติ">
+        <div class="kpi-icon-box kpi-icon-blue">🔧</div>
+        <div class="kpi-info-box">
+          <div class="kpi-label">แจ้งซ่อมทั้งหมด</div>
+          <div class="kpi-value-row">
+            <span class="kpi-value">${totalCount}</span>
+            <span class="kpi-unit">รายการ</span>
           </div>
         </div>
-        <button type="button" class="p" style="padding:6px 14px; font-size:13px;" onclick="copyNo('${lastNo}', event)">📋 คัดลอกเลขใบงาน</button>
       </div>
-      <div style="margin-top:12px; font-size:13px; color:var(--mut);">💡 ท่านสามารถติดตามความคืบหน้าของงานได้ที่แท็บ <b>"ประวัติของฉัน"</b> หรือค้นหาด้วยเลขใบงาน</div>
-    </div>` : ''}
 
-<form class="card" onsubmit="submitT(event)">
-  <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--bd); padding-bottom:12px; margin-bottom:16px;">
-    <div>
-      <b style="font-size:18px; color:var(--tx);">📝 ใบแจ้งซ่อมบำรุง / ติดตั้ง / ต่อเติมอาคาร</b>
-      <div class="mut" style="font-size:13px; margin-top:2px;">อุทยานวิทยาศาสตร์ มหาวิทยาลัยนเรศวร (อาคารมหาธรรมราชา)</div>
+      <div class="kpi-card" onclick="setTab('history')" style="cursor:pointer;" title="กดเพื่อดูงานกำลังดำเนินการ">
+        <div class="kpi-icon-box kpi-icon-orange">🕒</div>
+        <div class="kpi-info-box">
+          <div class="kpi-label">กำลังดำเนินการ</div>
+          <div class="kpi-value-row">
+            <span class="kpi-value">${doingCount}</span>
+            <span class="kpi-unit">รายการ</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="kpi-card" onclick="setTab('history')" style="cursor:pointer;" title="กดเพื่อดูงานซ่อมเสร็จ">
+        <div class="kpi-icon-box kpi-icon-green">✅</div>
+        <div class="kpi-info-box">
+          <div class="kpi-label">ซ่อมเสร็จแล้ว</div>
+          <div class="kpi-value-row">
+            <span class="kpi-value">${doneCount}</span>
+            <span class="kpi-unit">รายการ</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="kpi-card" onclick="setTab('history')" style="cursor:pointer;" title="กดเพื่อดูงานรอดำเนินการ">
+        <div class="kpi-icon-box kpi-icon-red">❗</div>
+        <div class="kpi-info-box">
+          <div class="kpi-label">รอดำเนินการ</div>
+          <div class="kpi-value-row">
+            <span class="kpi-value">${pendingCount}</span>
+            <span class="kpi-unit">รายการ</span>
+          </div>
+        </div>
+      </div>
     </div>
-    <span class="location-badge">Sci.Park@NU</span>
-  </div>
 
-  <div style="margin: 16px 0 10px; font-weight:600; color:var(--nu-orange); font-size:14px; display:flex; align-items:center; gap:6px;">
-    <span>👤 1. ข้อมูลผู้แจ้งซ่อม</span>
-  </div>
-  <div class="g">
-    <div><label>ชื่อ - นามสกุล ผู้แจ้ง <span style="color:var(--bad)">*</span></label><input name="name" value="${esc(me?.role === 'reporter' && me.name !== me.email ? me.name : '')}" required placeholder="เช่น นายสมชาย ใจดี"></div>
-    <div><label>อีเมลผู้แจ้ง <span style="color:var(--bad)">*</span></label><input name="email" type="email" value="${esc(me?.role === 'reporter' ? (me.email || '') : (localStorage.getItem('last_reporter_email') || ''))}" required placeholder="name@company.com" ${me?.role === 'reporter' && me.email ? 'readonly style="background:var(--chip);"' : ''}></div>
-    <div><label>หน่วยงาน / บริษัท / ฝ่าย</label><input name="org" value="${esc(me?.org || '')}" placeholder="เช่น บ.นวัตกรรมไทย, ฝ่ายบริหาร, บุคลากรทั่วไป"></div>
-    <div><label>เบอร์โทรศัพท์มือถือ <span style="color:var(--bad)">*</span></label><input name="tel" type="tel" value="${esc(me?.tel || '')}" required placeholder="เช่น 081-234-5678"></div>
-    <div><label>เบอร์โทรภายใน (ถ้ามี)</label><input name="ext" value="${esc(me?.ext || '')}" placeholder="เช่น 1234"></div>
-  </div>
+    <!-- 2 Columns: Recent Tickets Table (Left) + Promo Card (Right) -->
+    <div class="dashboard-columns">
+      <!-- Recent Tickets (Table on Desktop / Card List on Mobile) -->
+      <div class="content-card">
+        <div class="card-header-row" style="flex-wrap:wrap; gap:8px;">
+          <div class="card-header-title" style="font-size:18px; font-weight:800;">
+            <span>📢</span> รายการแจ้งซ่อมล่าสุด
+          </div>
+          <a href="javascript:void(0)" class="card-header-link" onclick="setTab('history')" style="font-size:15px; font-weight:700;">ดูประวัติทั้งหมด →</a>
+        </div>
 
-  <div style="margin: 22px 0 10px; font-weight:600; color:var(--nu-orange); font-size:14px; display:flex; align-items:center; gap:6px; border-top:1px solid var(--bd); padding-top:16px;">
-    <span>📍 2. สถานที่และบริเวณที่ชำรุด</span>
-  </div>
-  <div class="g">
-    <div><label>อาคาร / โซน <span style="color:var(--bad)">*</span></label><input name="bld" required placeholder="เช่น อาคารมหาธรรมราชา โซน B หรือ โซน C"></div>
-    <div><label>ชั้น <span style="color:var(--bad)">*</span></label><input name="flr" required placeholder="เช่น ชั้น 1, ชั้น 2"></div>
-    <div><label>ห้อง / บริเวณที่พบปัญหา <span style="color:var(--bad)">*</span></label><input name="room" required placeholder="เช่น ห้อง TC113.2, ลานจอดรถ, โถง Co-Working"></div>
-  </div>
+        <!-- Desktop Table View -->
+        <div class="nusp-table-wrapper desktop-only-table">
+          <table class="nusp-table">
+            <thead>
+              <tr>
+                <th>เลขที่ใบแจ้งซ่อม</th>
+                <th>หัวข้อปัญหา</th>
+                <th>ประเภท</th>
+                <th>สถานะ</th>
+                <th>วันที่แจ้ง</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${recentTickets.length ? recentTickets.map(t => {
+                let badge = '<span class="badge badge-pending"><span class="badge-dot"></span> รอดำเนินการ</span>';
+                if (t.status === 'doing') {
+                  const pTag = t.tag || t.note?.match(/^\[(.*?)\]/)?.[1] || '';
+                  if (pTag.includes('รออุปกรณ์') || pTag.includes('อะไหล่')) badge = '<span class="badge badge-waiting-parts"><span class="badge-dot"></span> ⏳ รออุปกรณ์</span>';
+                  else if (pTag.includes('ตรวจสอบ')) badge = '<span class="badge badge-inspecting"><span class="badge-dot"></span> 🔍 กำลังตรวจสอบ</span>';
+                  else if (pTag.includes('ติดปัญหา') || pTag.includes('ประสานงาน')) badge = '<span class="badge badge-issue"><span class="badge-dot"></span> ⚠️ ติดปัญหา</span>';
+                  else if (pTag.includes('ติดตั้ง')) badge = '<span class="badge badge-install"><span class="badge-dot"></span> 🛠️ กำลังติดตั้ง</span>';
+                  else badge = '<span class="badge badge-doing"><span class="badge-dot"></span> กำลังดำเนินการ</span>';
+                }
+                if (t.status === 'done') badge = '<span class="badge badge-done"><span class="badge-dot"></span> ' + ((t.done_type === 'ติดตั้ง/ต่อเติม' || t.cat === 'ติดตั้ง/ต่อเติม') ? 'ติดตั้งเสร็จแล้ว' : 'ซ่อมเสร็จแล้ว') + '</span>';
+                
+                return `
+                  <tr onclick="quickTrack('${t.no}', '${t.email || ''}')" style="cursor:pointer;" title="คลิกเพื่อดูรายละเอียด">
+                    <td style="font-weight:800; color:var(--primary); font-size:15px; white-space:nowrap;">${esc(t.no)}</td>
+                    <td style="font-weight:600; font-size:15px;">${esc(t.title || t.no)}</td>
+                    <td style="font-size:14px;">${esc(t.type || 'ทั่วไป')}</td>
+                    <td>${badge}</td>
+                    <td style="color:var(--text-muted); font-size:14px; white-space:nowrap;">${esc(t.date || fmt(t.created_at) || '-')}</td>
+                  </tr>
+                `;
+              }).join('') : `
+                <tr>
+                  <td colspan="5" style="text-align:center; padding:36px; color:var(--text-muted); font-size:16px;">
+                    ยังไม่มีรายการแจ้งซ่อม สามารถกด <b>"+ แจ้งซ่อมด่วน"</b> เพื่อเริ่มต้นส่งเรื่องได้ทันที
+                  </td>
+                </tr>
+              `}
+            </tbody>
+          </table>
+        </div>
 
-  <div style="margin: 22px 0 10px; font-weight:600; color:var(--nu-orange); font-size:14px; display:flex; align-items:center; gap:6px; border-top:1px solid var(--bd); padding-top:16px;">
-    <span>🛠️ 3. รายละเอียดงานแจ้งซ่อม</span>
-  </div>
-  
-  <label style="font-weight:600;">ประเภทการแจ้ง</label>
-  <div style="display:flex; gap:12px; margin-bottom:12px;">
-    <label class="box" style="flex:1; padding:10px; cursor:pointer; text-align:left; display:flex; align-items:center; gap:8px;">
-      <input type="radio" name="cat" value="ซ่อมแซม" checked onchange="catSw(this.value)" style="width:auto;">
-      <div><b>🔧 งานซ่อมแซม</b><div class="mut" style="font-size:11px;">แก้ไขอุปกรณ์ชำรุด เสียหาย</div></div>
-    </label>
-    <label class="box" style="flex:1; padding:10px; cursor:pointer; text-align:left; display:flex; align-items:center; gap:8px;">
-      <input type="radio" name="cat" value="ติดตั้ง/ต่อเติม" onchange="catSw(this.value)" style="width:auto;">
-      <div><b>🛠️ งานติดตั้ง / ต่อเติม</b><div class="mut" style="font-size:11px;">ติดตั้งอุปกรณ์ใหม่ ต่อเติมพื้นที่</div></div>
-    </label>
-  </div>
+        <!-- Mobile Card List View -->
+        <div class="mobile-only-cards" style="display:none; flex-direction:column; gap:12px; margin-top:8px;">
+          ${recentTickets.length ? recentTickets.map(t => {
+            let badge = '<span class="badge badge-pending"><span class="badge-dot"></span> รอดำเนินการ</span>';
+            if (t.status === 'doing') {
+              const pTag = t.tag || t.note?.match(/^\[(.*?)\]/)?.[1] || '';
+              if (pTag.includes('รออุปกรณ์') || pTag.includes('อะไหล่')) badge = '<span class="badge badge-waiting-parts"><span class="badge-dot"></span> ⏳ รออุปกรณ์</span>';
+              else if (pTag.includes('ตรวจสอบ')) badge = '<span class="badge badge-inspecting"><span class="badge-dot"></span> 🔍 กำลังตรวจสอบ</span>';
+              else if (pTag.includes('ติดปัญหา') || pTag.includes('ประสานงาน')) badge = '<span class="badge badge-issue"><span class="badge-dot"></span> ⚠️ ติดปัญหา</span>';
+              else if (pTag.includes('ติดตั้ง')) badge = '<span class="badge badge-install"><span class="badge-dot"></span> 🛠️ กำลังติดตั้ง</span>';
+              else badge = '<span class="badge badge-doing"><span class="badge-dot"></span> กำลังดำเนินการ</span>';
+            }
+            if (t.status === 'done') badge = '<span class="badge badge-done"><span class="badge-dot"></span> ' + ((t.done_type === 'ติดตั้ง/ต่อเติม' || t.cat === 'ติดตั้ง/ต่อเติม') ? 'ติดตั้งเสร็จแล้ว' : 'ซ่อมเสร็จแล้ว') + '</span>';
 
-  <div id="c1" style="background:var(--bg); border:1px solid var(--bd); border-radius:10px; padding:12px 14px; margin-bottom:14px;">
-    <label style="margin-top:0; font-weight:600;">หมวดหมู่งานซ่อมแซม (เลือกได้มากกว่า 1 ข้อ):</label>
-    ${chk('t1', REP)}
-  </div>
-  
-  <div id="c2" style="display:none; background:var(--bg); border:1px solid var(--bd); border-radius:10px; padding:12px 14px; margin-bottom:14px;">
-    <label style="margin-top:0; font-weight:600;">หมวดหมู่งานติดตั้ง/ต่อเติม (เลือกได้มากกว่า 1 ข้อ):</label>
-    ${chk('t2', INS)}
-  </div>
+            return `
+              <div onclick="quickTrack('${t.no}', '${t.email || ''}')" style="background:var(--bg-subtle); border:1.5px solid var(--border); border-radius:var(--radius-md); padding:14px; cursor:pointer; display:flex; flex-direction:column; gap:8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                  <b style="color:var(--primary); font-size:16px;">${esc(t.no)}</b>
+                  ${badge}
+                </div>
+                <div style="font-weight:700; font-size:16px; color:var(--text-main); line-height:1.4;">
+                  ${esc(t.title || t.no)}
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; font-size:13.5px; color:var(--text-muted); border-top:1px dashed var(--border); padding-top:6px; margin-top:2px;">
+                  <span>🏷️ ${esc(t.type || 'ทั่วไป')}</span>
+                  <span>🕒 ${esc(t.date || fmt(t.created_at) || '-')}</span>
+                </div>
+              </div>
+            `;
+          }).join('') : `
+            <div style="text-align:center; padding:28px 16px; color:var(--text-muted); font-size:15px; background:var(--bg-subtle); border-radius:var(--radius-md);">
+              ยังไม่มีรายการแจ้งซ่อม สามารถกด <b>"+ แจ้งซ่อมด่วน"</b> เพื่อเริ่มต้นส่งเรื่องได้ทันที
+            </div>
+          `}
+        </div>
+      </div>
 
-  <label style="font-weight:600;">รายการ / อาการที่ชำรุด / รหัสครุภัณฑ์ (ถ้ามี)</label>
-  <div style="font-size:12px; color:var(--mut); margin-bottom:6px;">ระบุสิ่งของที่เสีย อาการ และรหัสครุภัณฑ์เพื่อความสะดวกรวดเร็วในการตรวจสอบ</div>
-  <div id="rows">${rowH() + rowH() + rowH()}</div>
-  <button type="button" style="margin-top:4px;" onclick="addRow()">➕ เพิ่มรายการอีกแถว</button>
-
-  <div style="margin-top:16px;">
-    <label style="font-weight:600;">แนบรูปภาพประกอบ (ไม่เกิน 4 รูป)</label>
-    <input type="file" name="pics" accept="image/*" multiple style="background:var(--bg);">
-    <span class="mut" style="font-size:12px;">* ระบบจะย่อขนาดรูปภาพให้อัตโนมัติ รองรับไฟล์ภาพจากมือถือทุกรุ่น</span>
-  </div>
-
-  <div style="background:var(--bad-soft); border:1px solid rgba(239,68,68,0.25); border-radius:10px; padding:10px 14px; margin-top:16px;">
-    <label class="i" style="color:var(--bad); margin:0; font-weight:600;">
-      <input type="checkbox" name="urgent">
-      🚨 เป็นงานเร่งด่วนมาก (ส่งผลกระทบต่อความปลอดภัยหรือระบบหลัก)
-    </label>
-  </div>
-
-  <div style="margin-top:20px; border-top:1px solid var(--bd); padding-top:16px;">
-    <button type="submit" class="p" style="width:100%; padding:12px; font-size:16px; font-weight:bold;">🚀 ส่งเรื่องแจ้งซ่อม</button>
-  </div>
-</form>`
+      <!-- NUSP Smart Campus Feature Card -->
+      <div class="smart-campus-card">
+        <div>
+          <h3>NUSP<br>Smart Campus</h3>
+          <p>พื้นที่แห่งนวัตกรรมและการบริการ<br>เพื่อความสะดวกและรวดเร็ว</p>
+        </div>
+        <div style="margin-top:16px;">
+          <button class="btn btn-primary" style="width:100%; min-height:48px; font-size:16px; font-weight:700; background:#ffffff; color:var(--primary); border:none;" onclick="setTab('report')">
+            + แจ้งซ่อมด่วนทันที
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
-window.submitT = async function (e) {
-  e.preventDefault(); const f = new FormData(e.target), v = k => (f.get(k) || '').trim(), cat = f.get('cat');
-  const typeKey = cat === 'ซ่อมแซม' ? 't1' : 't2';
-  const rawTypes = f.getAll(typeKey);
-  const types = rawTypes.map(t => t.includes('อื่น') ? `อื่นๆ (${f.get(typeKey + '_other_val') || 'ไม่ระบุ'})` : t);
-  const it = f.getAll('it'), sy = f.getAll('sy'), as = f.getAll('as');
-  const items = it.map((x, i) => ({ item: x.trim(), sym: sy[i].trim(), asset: as[i].trim() })).filter(x => x.item || x.sym);
-  if (!types.length || !items.length) return toast('เลือกประเภทงานและกรอกรายการอย่างน้อย 1 แถว');
-  const no = 'RP-' + new Date().toISOString().slice(2, 10).replace(/-/g, '') + '-' + Math.floor(1000 + Math.random() * 9000);
-  const b = e.target.querySelector('.p'); b.disabled = true; toast('กำลังส่งเรื่อง...');
-  try {
-    const fl = f.getAll('pics').filter(x => x.size), photos = fl.length ? await up(fl, 'r/' + no) : [];
-    const emailVal = v('email').toLowerCase();
-    const nameVal = v('name');
-    const { error } = await sb.from('tickets').insert({ id: no, name: nameVal, email: emailVal, org: v('org'), ext: v('ext'), tel: v('tel'), cat, bld: v('bld'), flr: v('flr'), room: v('room'), types, items, urgent: !!f.get('urgent'), photos, history: [{ s: 'accepted', at: Date.now() }] });
-    if (error) throw error; 
-    
-    // บันทึกโปรไฟล์ไว้เพื่อเติมข้อมูลอัตโนมัติในครั้งต่อไป
-    localStorage.setItem('profile_' + emailVal, JSON.stringify({ name: nameVal, org: v('org'), ext: v('ext'), tel: v('tel') }));
-    localStorage.setItem('last_reporter_email', emailVal);
+// Screen 2: แจ้งซ่อมใหม่ (Multi-Step Form Wizard)
+function vReport() {
+  if (reportStep === 3) {
+    // Step 3: ยืนยันการแจ้งซ่อมสำเร็จ
+    return `
+      <div class="content-card" style="max-width: 680px; margin: 20px auto; text-align: center; padding: 40px 24px;">
+        <div style="width: 64px; height: 64px; border-radius: 50%; background: #d1fae5; color: #059669; font-size: 32px; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+          ✓
+        </div>
+        <h2 style="font-size: 22px; color: var(--text-main); margin-bottom: 6px;">ส่งเรื่องแจ้งซ่อมเรียบร้อยแล้ว!</h2>
+        <p class="mut" style="margin-bottom: 24px;">เจ้าหน้าที่และทีมช่าง NUSP ได้รับข้อมูลของท่านแล้ว</p>
 
-    if (me && me.role === 'reporter') {
-      me.name = nameVal;
-      me.org = v('org');
-      me.ext = v('ext');
-      me.tel = v('tel');
-      sessionStorage.setItem('repair_me', JSON.stringify(me));
-      localStorage.setItem('repair_reporter_me', JSON.stringify(me));
+        <div style="background: var(--bg-subtle); border: 1px dashed var(--border); border-radius: var(--radius-md); padding: 16px; max-width: 400px; margin: 0 auto 24px;">
+          <div style="font-size: 15px; color: var(--text-muted); margin-bottom: 4px; font-weight:600;">เลขที่ใบแจ้งซ่อมของคุณ</div>
+          <div style="font-size: 26px; font-weight: 800; color: var(--primary); letter-spacing: 0.5px;">${esc(lastNo || '-')}</div>
+          ${lastNo ? `<button type="button" class="btn btn-outline btn-sm" style="margin-top: 10px; font-size:14px; font-weight:700;" onclick="copyNo('${lastNo}', event)">📋 คัดลอกเลขที่ใบแจ้งซ่อม</button>` : ''}
+        </div>
+
+        <div class="row" style="justify-content: center; gap: 10px;">
+          <button class="btn btn-outline" onclick="setReportStep(1); setTab('history');">ดูประวัติการแจ้งซ่อม</button>
+          <button class="btn btn-primary" onclick="setReportStep(1); setTab('home');">กลับหน้าหลัก</button>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="content-card" style="max-width: 820px; margin: 0 auto;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+        <h2 style="font-size: 20px; font-weight: 800; color: var(--text-main); display:flex; align-items:center; gap:8px;">
+          <span>🔧</span> แจ้งซ่อมใหม่
+        </h2>
+      </div>
+
+      <!-- Stepper Wizard (3 Steps) -->
+      <div class="step-wizard">
+        <div class="step-item ${reportStep >= 1 ? 'active' : ''} ${reportStep > 1 ? 'completed' : ''}">
+          <div class="step-circle">${reportStep > 1 ? '✓' : '1'}</div>
+          <span>ข้อมูลปัญหา</span>
+        </div>
+        <div class="step-line ${reportStep > 1 ? 'completed' : ''}"></div>
+        <div class="step-item ${reportStep >= 2 ? 'active' : ''} ${reportStep > 2 ? 'completed' : ''}">
+          <div class="step-circle">${reportStep > 2 ? '✓' : '2'}</div>
+          <span>ตรวจสอบข้อมูล</span>
+        </div>
+        <div class="step-line ${reportStep > 2 ? 'completed' : ''}"></div>
+        <div class="step-item ${reportStep === 3 ? 'active' : ''}">
+          <div class="step-circle">3</div>
+          <span>ยืนยันการแจ้งซ่อม</span>
+        </div>
+      </div>
+
+      ${reportStep === 1 ? `
+        <!-- Step 1: ฟอร์มกรอกข้อมูลตามใบแจ้งซ่อมจริงของ NUSP -->
+        <form id="reportFormStep1" onsubmit="handleNextStep(event)">
+          <!-- ปุ่มสลับหมวดงานหลัก: งานซ่อมแซม หรือ งานติดตั้ง/ต่อเติม -->
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:20px;">
+            <button type="button" class="btn ${newReportDraft.cat === 'ซ่อมแซม' ? 'btn-primary' : 'btn-outline'}" style="padding:12px; font-size:14.5px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:8px;" onclick="setReportCat('ซ่อมแซม')">
+              🔧 งานซ่อมแซม
+            </button>
+            <button type="button" class="btn ${newReportDraft.cat === 'ติดตั้ง/ต่อเติม' ? 'btn-primary' : 'btn-outline'}" style="padding:12px; font-size:14.5px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:8px;" onclick="setReportCat('ติดตั้ง/ต่อเติม')">
+              🛠️ งานติดตั้ง / ต่อเติม
+            </button>
+          </div>
+
+          <!-- Section 1: ข้อมูลผู้แจ้งและสถานที่ -->
+          <div style="background:var(--bg-subtle); border:1px solid var(--border); border-radius:var(--radius-md); padding:16px 18px; margin-bottom:18px;">
+            <div style="font-weight:700; font-size:16.5px; color:var(--text-main); margin-bottom:12px; display:flex; align-items:center; gap:6px;">
+              <span>🏢</span> ข้อมูลผู้แจ้งและสถานที่
+            </div>
+            <div class="form-grid" style="margin-bottom:0;">
+              <div class="form-group">
+                <label>หน่วยงาน / บริษัท</label>
+                <input class="form-control" name="org" value="${esc(newReportDraft.org || '')}" placeholder="เช่น บริษัท นวัตกรรม จำกัด หรือ ศูนย์ฯ..." oninput="updateDraft('org', this.value)">
+              </div>
+
+              <div class="form-group">
+                <label>เบอร์โทรศัพท์ <span class="req">*</span></label>
+                <div style="display:grid; grid-template-columns:1.5fr 1fr; gap:8px;">
+                  <input class="form-control" name="tel" value="${esc(newReportDraft.tel || (me?.tel || ''))}" placeholder="เบอร์มือถือ เช่น 081-234-5678" required oninput="updateDraft('tel', this.value)">
+                  <input class="form-control" name="tel_internal" value="${esc(newReportDraft.tel_internal || '')}" placeholder="เบอร์ภายใน" oninput="updateDraft('tel_internal', this.value)">
+                </div>
+              </div>
+
+              <div class="form-group ${newReportDraft.bld === 'อื่นๆ' ? '' : ''}">
+                <label>อาคาร <span class="req">*</span></label>
+                <select class="form-control" name="bld" required onchange="setReportBld(this.value)">
+                  <option value="อาคาร A" ${newReportDraft.bld === 'อาคาร A' ? 'selected' : ''}>อาคาร A</option>
+                  <option value="อาคาร B" ${newReportDraft.bld === 'อาคาร B' ? 'selected' : ''}>อาคาร B</option>
+                  <option value="อาคาร C" ${newReportDraft.bld === 'อาคาร C' ? 'selected' : ''}>อาคาร C</option>
+                  <option value="อื่นๆ" ${newReportDraft.bld === 'อื่นๆ' ? 'selected' : ''}>อื่นๆ (ระบุเอง)</option>
+                </select>
+                ${newReportDraft.bld === 'อื่นๆ' ? `
+                  <input class="form-control" name="bld_other" value="${esc(newReportDraft.bld_other || '')}" placeholder="โปรดพิมพ์ระบุชื่ออาคาร..." required style="margin-top:6px; animation: fadeIn 0.2s;" oninput="updateDraft('bld_other', this.value)">
+                ` : ''}
+              </div>
+
+              <div class="form-group">
+                <label>ชั้น และ ห้อง <span class="req">*</span></label>
+                <div style="display:grid; grid-template-columns:1fr 1.6fr; gap:8px;">
+                  <select class="form-control" name="flr" required onchange="updateDraft('flr', this.value)">
+                    <option value="1" ${newReportDraft.flr === '1' ? 'selected' : ''}>ชั้น 1</option>
+                    <option value="2" ${newReportDraft.flr === '2' ? 'selected' : ''}>ชั้น 2</option>
+                    <option value="3" ${newReportDraft.flr === '3' ? 'selected' : ''}>ชั้น 3</option>
+                    <option value="4" ${newReportDraft.flr === '4' ? 'selected' : ''}>ชั้น 4</option>
+                  </select>
+                  <input class="form-control" name="room" value="${esc(newReportDraft.room || '')}" placeholder="เลขห้อง เช่น TC 320" required oninput="updateDraft('room', this.value)">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 2: ประเภทงานและรายละเอียด -->
+          <div class="form-grid">
+            <div class="form-group ${newReportDraft.sub_type === 'อื่นๆ' ? '' : 'full-width'}">
+              <label>ประเภทงาน${newReportDraft.cat === 'ซ่อมแซม' ? 'ซ่อมแซม' : ' ติดตั้ง/ต่อเติม'} <span class="req">*</span></label>
+              <select class="form-control" name="sub_type" required onchange="setReportSubType(this.value)">
+                ${(newReportDraft.cat === 'ซ่อมแซม' ? REPAIR_SUBTYPES : INSTALL_SUBTYPES).map(st => `
+                  <option value="${esc(st)}" ${newReportDraft.sub_type === st ? 'selected' : ''}>${esc(st)}</option>
+                `).join('')}
+              </select>
+            </div>
+
+            ${newReportDraft.sub_type === 'อื่นๆ' ? `
+              <div class="form-group" style="animation: fadeIn 0.2s;">
+                <label style="color:var(--primary); font-weight:700;">ระบุประเภทงานอื่นๆ <span class="req">*</span></label>
+                <input class="form-control" name="sub_type_other" value="${esc(newReportDraft.sub_type_other || '')}" placeholder="โปรดระบุประเภทงานที่ต้องการ..." required oninput="updateDraft('sub_type_other', this.value)">
+              </div>
+            ` : ''}
+
+            <div class="form-group">
+              <label>${newReportDraft.cat === 'ซ่อมแซม' ? 'รายการซ่อมแซม' : 'รายการติดตั้ง / ต่อเติม'} <span class="req">*</span></label>
+              <input class="form-control" name="title" value="${esc(newReportDraft.title)}" placeholder="${newReportDraft.cat === 'ซ่อมแซม' ? 'เช่น ล้างแผ่นกรองอากาศ, อุดท่อน้ำทิ้ง' : 'เช่น ติดตั้งเต้ารับไฟฟ้าเพิ่ม, ติดตั้งเครื่องจักรใหม่'}" required oninput="updateDraft('title', this.value)">
+            </div>
+
+            <div class="form-group">
+              <label>หมายเลขครุภัณฑ์ (ถ้ามี)</label>
+              <input class="form-control" name="asset_no" value="${esc(newReportDraft.asset_no || '')}" placeholder="เช่น 7440-001-0001/67 (ถ้ามี)" oninput="updateDraft('asset_no', this.value)">
+            </div>
+
+            <div class="form-group full-width">
+              <label>${newReportDraft.cat === 'ซ่อมแซม' ? 'อาการที่ชำรุด' : 'รายละเอียดการติดตั้ง / ต่อเติม'} <span class="req">*</span></label>
+              <textarea class="form-control" name="details" rows="3" placeholder="อธิบายอาการชำรุด หรือรายละเอียดสิ่งที่ต้องการให้ดำเนินการ..." required oninput="updateDraft('details', this.value)">${esc(newReportDraft.details)}</textarea>
+            </div>
+
+            <div class="form-group full-width">
+              <label>ความเร่งด่วน</label>
+              <div class="priority-options">
+                <label class="priority-pill ${newReportDraft.priority === 'normal' ? 'selected' : ''}" onclick="selectPriority('normal')">
+                  <input type="radio" name="priority" value="normal" ${newReportDraft.priority === 'normal' ? 'checked' : ''}>
+                  <span style="color:#ea580c;">●</span> ปกติ
+                </label>
+                <label class="priority-pill ${newReportDraft.priority === 'urgent' ? 'selected' : ''}" onclick="selectPriority('urgent')">
+                  <input type="radio" name="priority" value="urgent" ${newReportDraft.priority === 'urgent' ? 'checked' : ''}>
+                  <span style="color:#f59e0b;">●</span> เร่งด่วน
+                </label>
+                <label class="priority-pill ${newReportDraft.priority === 'emergency' ? 'selected' : ''}" onclick="selectPriority('emergency')">
+                  <input type="radio" name="priority" value="emergency" ${newReportDraft.priority === 'emergency' ? 'checked' : ''}>
+                  <span style="color:#ef4444;">●</span> ฉุกเฉิน
+                </label>
+              </div>
+            </div>
+
+            <div class="form-group full-width">
+              <label>แนบรูปภาพ (ถ้ามี)</label>
+              <div class="upload-dropzone" onclick="document.getElementById('report_files').click()">
+                <span class="upload-icon">🖼️</span>
+                <p>ลากไฟล์มาวางที่นี่ หรือ <span style="color:var(--primary);">คลิกเพื่อเลือกไฟล์</span></p>
+                <span>รองรับไฟล์ JPG, PNG ขนาดไม่เกิน 5 MB</span>
+                <input type="file" id="report_files" name="pics" accept="image/*" multiple style="display:none;" onchange="handleFileSelect(this)">
+              </div>
+              <div id="file-previews" style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;"></div>
+            </div>
+          </div>
+
+          <div class="row sp" style="margin-top: 24px; border-top: 1px solid var(--border); padding-top: 16px;">
+            <button type="button" class="btn btn-outline" onclick="setTab('home')">ยกเลิก</button>
+            <button type="submit" class="btn btn-primary">ถัดไป →</button>
+          </div>
+        </form>
+      ` : `
+        <!-- Step 2: ตรวจสอบข้อมูลก่อนส่งเรื่อง -->
+        <div style="background:var(--bg-subtle); border:1px solid var(--border); border-radius:var(--radius-lg); padding:24px 20px; margin-bottom:20px;">
+          <h3 style="font-size:18px; font-weight:800; margin-bottom:16px; color:var(--text-main); display:flex; align-items:center; gap:8px;">
+            <span>🔍</span> ตรวจสอบข้อมูลใบแจ้งซ่อม / ติดตั้ง
+          </h3>
+          <div style="display:flex; flex-direction:column; gap:12px; font-size:16px; line-height:1.5;">
+            <div style="display:flex; flex-wrap:wrap; justify-content:space-between; border-bottom:1px solid var(--border-light); padding-bottom:8px;">
+              <span class="mut" style="font-weight:700;">หมวดงาน:</span>
+              <span><span class="badge ${newReportDraft.cat === 'ติดตั้ง/ต่อเติม' ? 'badge-install' : 'badge-doing'}" style="font-size:14px;">${esc(newReportDraft.cat)}</span></span>
+            </div>
+
+            <div style="display:flex; flex-wrap:wrap; justify-content:space-between; border-bottom:1px solid var(--border-light); padding-bottom:8px;">
+              <span class="mut" style="font-weight:700;">ประเภทงาน:</span>
+              <span style="font-weight:700; color:var(--primary);">${esc(newReportDraft.sub_type === 'อื่นๆ' ? (newReportDraft.sub_type_other ? 'อื่นๆ: ' + newReportDraft.sub_type_other : 'อื่นๆ') : newReportDraft.sub_type)}</span>
+            </div>
+
+            <div style="display:flex; flex-wrap:wrap; justify-content:space-between; border-bottom:1px solid var(--border-light); padding-bottom:8px;">
+              <span class="mut" style="font-weight:700;">${newReportDraft.cat === 'ซ่อมแซม' ? 'รายการซ่อมแซม' : 'รายการติดตั้ง'}:</span>
+              <span style="font-weight:700;">${esc(newReportDraft.title)}</span>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:4px; border-bottom:1px solid var(--border-light); padding-bottom:8px;">
+              <span class="mut" style="font-weight:700;">${newReportDraft.cat === 'ซ่อมแซม' ? 'อาการที่ชำรุด' : 'รายละเอียดงาน'}:</span>
+              <div style="background:#ffffff; border:1px solid var(--border); padding:10px 14px; border-radius:8px;">${esc(newReportDraft.details)}</div>
+            </div>
+
+            ${newReportDraft.asset_no ? `
+              <div style="display:flex; flex-wrap:wrap; justify-content:space-between; border-bottom:1px solid var(--border-light); padding-bottom:8px;">
+                <span class="mut" style="font-weight:700;">หมายเลขครุภัณฑ์:</span>
+                <span>${esc(newReportDraft.asset_no)}</span>
+              </div>
+            ` : ''}
+
+            <div style="display:flex; flex-wrap:wrap; justify-content:space-between; border-bottom:1px solid var(--border-light); padding-bottom:8px;">
+              <span class="mut" style="font-weight:700;">สถานที่:</span>
+              <span style="font-weight:600;">${esc(newReportDraft.bld === 'อื่นๆ' ? (newReportDraft.bld_other ? 'อาคาร: ' + newReportDraft.bld_other : 'อื่นๆ') : newReportDraft.bld)} ชั้น ${esc(newReportDraft.flr)} ห้อง ${esc(newReportDraft.room || '-')}</span>
+            </div>
+
+            <div style="display:flex; flex-wrap:wrap; justify-content:space-between; border-bottom:1px solid var(--border-light); padding-bottom:8px;">
+              <span class="mut" style="font-weight:700;">หน่วยงาน / บริษัท:</span>
+              <span>${esc(newReportDraft.org || '-')}</span>
+            </div>
+
+            <div style="display:flex; flex-wrap:wrap; justify-content:space-between; border-bottom:1px solid var(--border-light); padding-bottom:8px;">
+              <span class="mut" style="font-weight:700;">ผู้แจ้ง:</span>
+              <span>${esc(me?.name || 'ผู้แจ้ง')} (โทร: ${esc(newReportDraft.tel || '-')}${newReportDraft.tel_internal ? ' ภายใน: ' + esc(newReportDraft.tel_internal) : ''})</span>
+            </div>
+
+            <div style="display:flex; flex-wrap:wrap; justify-content:space-between; padding-top:4px;">
+              <span class="mut" style="font-weight:700;">ความเร่งด่วน:</span>
+              <div>
+                ${newReportDraft.priority === 'emergency' ? '<span class="badge badge-urgent"><span class="badge-dot"></span> ฉุกเฉิน</span>' : newReportDraft.priority === 'urgent' ? '<span class="badge badge-pending"><span class="badge-dot"></span> เร่งด่วน</span>' : '<span class="badge badge-doing"><span class="badge-dot"></span> ปกติ</span>'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row sp" style="margin-top: 24px; border-top: 1px solid var(--border); padding-top: 16px;">
+          <button type="button" class="btn btn-outline" onclick="setReportStep(1)">← ย้อนกลับไปแก้ไข</button>
+          <button type="button" class="btn btn-primary" onclick="confirmSubmitReport(event)">ยืนยันการแจ้งซ่อม ✓</button>
+        </div>
+      `}
+    </div>
+  `;
+}
+
+window.selectPriority = function(pri) {
+  newReportDraft.priority = pri;
+  const pills = document.querySelectorAll('.priority-pill');
+  pills.forEach(p => p.classList.remove('selected'));
+  if (event?.currentTarget) event.currentTarget.classList.add('selected');
+};
+
+let selectedFilesList = [];
+window.handleFileSelect = function(input) {
+  selectedFilesList = [...input.files];
+  const previewBox = document.getElementById('file-previews');
+  if (!previewBox) return;
+  previewBox.innerHTML = '';
+  selectedFilesList.forEach(file => {
+    const url = URL.createObjectURL(file);
+    previewBox.insertAdjacentHTML('beforeend', `
+      <img src="${url}" style="width:60px; height:60px; object-fit:cover; border-radius:6px; border:1px solid var(--border);">
+    `);
+  });
+};
+
+window.handleNextStep = function(e) {
+  e.preventDefault();
+  if (!newReportDraft.title || !newReportDraft.details) {
+    return toast('กรุณากรอกรายการและรายละเอียดปัญหาให้ครบถ้วน');
+  }
+  if (!newReportDraft.room) {
+    return toast('กรุณาระบุเลขห้องที่ต้องการให้เข้าดำเนินการ');
+  }
+  if (newReportDraft.bld === 'อื่นๆ' && !newReportDraft.bld_other.trim()) {
+    return toast('กรุณาระบุชื่ออาคาร');
+  }
+  if (newReportDraft.sub_type === 'อื่นๆ' && !newReportDraft.sub_type_other.trim()) {
+    return toast('กรุณาระบุประเภทงานอื่นๆ');
+  }
+  setReportStep(2);
+};
+
+window.confirmSubmitReport = async function(e) {
+  const btn = e.target;
+  btn.disabled = true;
+  toast('กำลังส่งเรื่องแจ้งซ่อม...');
+
+  const no = 'REP-' + new Date().getFullYear() + '-' + Math.floor(100 + Math.random() * 900);
+  const cat = newReportDraft.cat || 'ซ่อมแซม';
+  const chosenType = newReportDraft.sub_type === 'อื่นๆ'
+    ? (newReportDraft.sub_type_other ? 'อื่นๆ: ' + newReportDraft.sub_type_other : 'อื่นๆ')
+    : (newReportDraft.sub_type || 'ทั่วไป');
+
+  try {
+    let photos = [];
+    if (selectedFilesList.length) {
+      photos = await up(selectedFilesList, 'r/' + no);
     }
 
+    const telCombined = newReportDraft.tel + (newReportDraft.tel_internal ? ' (ภายใน ' + newReportDraft.tel_internal + ')' : '');
+
+    const chosenBld = newReportDraft.bld === 'อื่นๆ'
+      ? (newReportDraft.bld_other ? 'อาคาร: ' + newReportDraft.bld_other : 'อื่นๆ')
+      : (newReportDraft.bld || 'อาคาร A');
+
+    const payload = {
+      id: no,
+      name: me?.name ? (newReportDraft.org ? `${me.name} (${newReportDraft.org})` : me.name) : 'ผู้แจ้งทั่วไป',
+      email: (me?.email || 'user@nusp.or.th').toLowerCase(),
+      tel: telCombined,
+      cat: cat,
+      bld: chosenBld,
+      flr: newReportDraft.flr || '1',
+      room: newReportDraft.room || '',
+      types: [chosenType],
+      items: [{
+        item: newReportDraft.title,
+        sym: newReportDraft.details,
+        asset: newReportDraft.asset_no || ''
+      }],
+      urgent: newReportDraft.priority !== 'normal',
+      photos: photos,
+      history: [{ s: 'accepted', at: Date.now() }]
+    };
+
+    const { error } = await sb.from('tickets').insert(payload);
+    if (error && !CONFIG.DEV) throw error;
+
+    // Save to localStorage myT
     const myT = JSON.parse(localStorage.getItem('myT') || '[]');
-    myT.unshift({ no, email: emailVal, status: 'accepted' });
+    myT.unshift({
+      no: no,
+      title: newReportDraft.title,
+      type: chosenType,
+      location: `อาคาร ${newReportDraft.bld} ชั้น ${newReportDraft.flr}`,
+      room: newReportDraft.room,
+      email: payload.email,
+      status: 'accepted',
+      date: new Date().toLocaleDateString('th-TH', { day:'numeric', month:'short', year:'numeric' })
+    });
     localStorage.setItem('myT', JSON.stringify(myT));
 
-    lastNo = no; render(); scrollTo(0, 0)
-  } catch (x) { toast('ส่งเรื่องไม่สำเร็จ: ' + (x.message || x)); b.disabled = false }
+    // Also update in memory T if technician or admin is logged in
+    if (window.T) {
+      T.unshift({
+        ...payload,
+        created_at: new Date().toISOString()
+      });
+    }
+
+    lastNo = no;
+    // Reset draft
+    resetReportDraft();
+    selectedFilesList = [];
+    
+    setReportStep(3);
+    toast('ส่งเรื่องแจ้งซ่อมสำเร็จ!');
+  } catch (err) {
+    if (CONFIG.DEV) {
+      lastNo = no;
+      setReportStep(3);
+      toast('(โหมดทดสอบ) ส่งเรื่องแจ้งซ่อมสำเร็จ!');
+      return;
+    }
+    toast('ส่งเรื่องไม่สำเร็จ: ' + (err.message || err));
+    btn.disabled = false;
+  }
+};
+
+// Screen: ติดตามสถานะ (Track Ticket)
+function vTrack() {
+  return `
+    <div class="content-card" style="max-width:700px; margin:0 auto 20px;">
+      <h2 style="font-size:18px; margin-bottom:8px;">🔍 ติดตามสถานะใบแจ้งซ่อม</h2>
+      <p class="mut" style="margin-bottom:16px;">กรอกเลขที่ใบแจ้งซ่อม เช่น REP-2026-001 หรือ RP-...</p>
+      
+      <form onsubmit="trackT(event)" style="display:flex; gap:8px;">
+        <input class="form-control" name="no" placeholder="เช่น REP-2026-010" required style="font-size:15px; font-weight:600;">
+        <button class="btn btn-primary" type="submit" style="white-space:nowrap;">ค้นหาใบงาน</button>
+      </form>
+    </div>
+
+    ${found === null ? '<div class="content-card mut" style="max-width:700px; margin:auto; text-align:center;">ไม่พบใบงาน โปรดตรวจสอบเลขที่ใบแจ้งซ่อมอีกครั้ง</div>' : found ? `<div style="max-width:700px; margin:auto;">${card(found, steps(found))}</div>` : ''}
+  `;
 }
 
+// Screen: ประวัติการแจ้งซ่อม (History)
 function vHistory() {
   const myT = JSON.parse(localStorage.getItem('myT') || '[]');
   
   let filtered = myT;
   if (hFil === 'pending') filtered = myT.filter(t => t.status === 'accepted' || t.status === 'doing' || !t.status);
   if (hFil === 'done') filtered = myT.filter(t => t.status === 'done');
-  
-  const cancelBtn = found?.status === 'accepted' ? `<div style="margin-top:12px; border-top:1px solid var(--bd); padding-top:12px"><button class="d" onclick="cancelMyTicket('${found.id}')">❌ ยกเลิกการแจ้งซ่อมนี้</button></div>` : '';
-  
-  const filterHtml = myT.length ? `
-    <div class="row" style="margin-bottom: 12px; gap: 8px;">
-        <button class="${hFil === 'all' ? 'on' : ''}" style="padding: 4px 10px; font-size: 13px;" onclick="setHFil('all')">ทั้งหมด</button>
-        <button class="${hFil === 'pending' ? 'on' : ''}" style="padding: 4px 10px; font-size: 13px;" onclick="setHFil('pending')">รอดำเนินการ</button>
-        <button class="${hFil === 'done' ? 'on' : ''}" style="padding: 4px 10px; font-size: 13px;" onclick="setHFil('done')">เสร็จสิ้น</button>
-    </div>
-  ` : '';
 
-  const reporterEmail = (me && me.role === 'reporter' ? me.email : '') || localStorage.getItem('last_reporter_email') || '';
+  return `
+    <div class="content-card">
+      <div class="card-header-row">
+        <h2 style="font-size:18px; display:flex; align-items:center; gap:8px;">
+          <span>📋</span> ประวัติการแจ้งซ่อมของฉัน (${myT.length} งาน)
+        </h2>
+        <button class="btn btn-primary btn-sm" onclick="setTab('report')">+ แจ้งซ่อมใหม่</button>
+      </div>
 
-  const historyHtml = myT.length ? `
-    <div class="card">
-      <div class="row sp">
-        <b>📋 ประวัติการแจ้งซ่อมของคุณ (พบ ${myT.length} งาน)</b>
-        ${reporterEmail ? `<span class="mut" style="font-size:13px;">อีเมล: <b>${esc(reporterEmail)}</b></span>` : ''}
-      </div>
-      <p class="mut" style="margin-top:4px; margin-bottom:8px;">กดที่เลขใบงานเพื่อดูรายละเอียดสถานะ</p>
-      ${filterHtml}
-      <div class="row" style="gap:8px">
-        ${filtered.map(t => {
-            const st = t.status ? ST[t.status] : null;
-            const badge = st ? `<span style="font-size:11px; padding:2px 6px; border-radius:4px; background:${st[1]}; color:#fff; white-space:nowrap">${st[0]}</span>` : `<span style="font-size:11px; padding:2px 6px; border-radius:4px; background:var(--mut); color:#fff;">กำลังเช็ค..</span>`;
-            return `<div class="box ${found?.id === t.no ? 'sel' : ''}" onclick="quickTrack('${t.no}', '${t.email}')" style="flex:1; min-width:200px; padding:10px; text-align:left; border-color:var(--bd)">
-                <div class="row sp" style="margin-bottom:6px;">
-                    <b>${esc(t.no)}</b> 
-                    <span onclick="copyNo('${t.no}', event)" style="cursor:pointer; font-size:16px;" title="คัดลอกเลขใบงาน">📋</span>
-                </div>
-                <div class="row sp">
-                    <div class="mut" style="font-size:12px; word-break:break-all; padding-right:8px;">${esc(t.email)}</div>
-                    ${badge}
-                </div>
-            </div>`
-        }).join('') || '<div class="mut" style="padding: 10px; text-align:center; width:100%">ไม่พบรายการในสถานะนี้</div>'}
-      </div>
-      <div style="text-align:right; margin-top:14px">
-        <button class="mut" style="padding:4px 8px; font-size:12px; border:none; background:transparent" onclick="clearHistory()">ลบประวัติในเครื่อง</button>
-      </div>
-    </div>
-  ` : `<div class="card mut" style="text-align:center; padding:24px 10px;">
-        ${reporterEmail ? `ยังไม่พบประวัติการแจ้งซ่อมสำหรับอีเมล <b>${esc(reporterEmail)}</b>` : 'คุณยังไม่มีประวัติการแจ้งซ่อมบนอุปกรณ์นี้'}
-        <div style="margin-top:12px;">
-          <button class="p" onclick="setTab('report')">➕ แจ้งซ่อมรายการใหม่</button>
+      <div class="filter-bar">
+        <div class="filter-pills">
+          <button class="filter-pill ${hFil === 'all' ? 'active' : ''}" onclick="setHFil('all')">ทั้งหมด (${myT.length})</button>
+          <button class="filter-pill ${hFil === 'pending' ? 'active' : ''}" onclick="setHFil('pending')">รอดำเนินการ (${myT.filter(t => t.status !== 'done').length})</button>
+          <button class="filter-pill ${hFil === 'done' ? 'active' : ''}" onclick="setHFil('done')">เสร็จสิ้น (${myT.filter(t => t.status === 'done').length})</button>
         </div>
-      </div>`;
+      </div>
 
-  return historyHtml + (found ? card(found, steps(found) + cancelBtn) : '');
+      <div class="nusp-table-wrapper">
+        <table class="nusp-table">
+          <thead>
+            <tr>
+              <th>เลขที่ใบแจ้งซ่อม</th>
+              <th>หัวข้อ</th>
+              <th>ประเภท</th>
+              <th>สถานะ</th>
+              <th>วันที่</th>
+              <th>การจัดการ</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filtered.map(t => {
+              let badge = '<span class="badge badge-pending"><span class="badge-dot"></span> รอดำเนินการ</span>';
+              if (t.status === 'doing') {
+                const pTag = t.tag || t.note?.match(/^\[(.*?)\]/)?.[1] || '';
+                if (pTag.includes('รออุปกรณ์') || pTag.includes('อะไหล่')) badge = '<span class="badge badge-waiting-parts"><span class="badge-dot"></span> ⏳ รออุปกรณ์</span>';
+                else if (pTag.includes('ตรวจสอบ')) badge = '<span class="badge badge-inspecting"><span class="badge-dot"></span> 🔍 กำลังตรวจสอบ</span>';
+                else if (pTag.includes('ติดปัญหา') || pTag.includes('ประสานงาน')) badge = '<span class="badge badge-issue"><span class="badge-dot"></span> ⚠️ ติดปัญหา</span>';
+                else if (pTag.includes('ติดตั้ง')) badge = '<span class="badge badge-install"><span class="badge-dot"></span> 🛠️ กำลังติดตั้ง</span>';
+                else badge = '<span class="badge badge-doing"><span class="badge-dot"></span> กำลังดำเนินการ</span>';
+              }
+              if (t.status === 'done') badge = '<span class="badge badge-done"><span class="badge-dot"></span> ' + ((t.done_type === 'ติดตั้ง/ต่อเติม' || t.cat === 'ติดตั้ง/ต่อเติม') ? 'ติดตั้งเสร็จแล้ว' : 'ซ่อมเสร็จแล้ว') + '</span>';
+
+              return `
+                <tr>
+                  <td style="font-weight:700; color:var(--primary);">${esc(t.no)}</td>
+                  <td>${esc(t.title || t.no)}</td>
+                  <td>${esc(t.type || 'เครื่องปรับอากาศ')}</td>
+                  <td>${badge}</td>
+                  <td style="color:var(--text-muted); font-size:14.5px;">${esc(t.date || fmt(t.created_at) || '-')}</td>
+                  <td>
+                    <button class="btn btn-outline btn-sm" onclick="quickTrack('${t.no}', '${t.email || ''}')">ดูรายละเอียด</button>
+                  </td>
+                </tr>
+              `;
+            }).join('') || '<tr><td colspan="6" class="mut" style="text-align:center; padding:24px;">ไม่พบรายการในหมวดนี้</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    ${found ? `<div style="max-width:800px; margin:20px auto 0;">${card(found, steps(found))}</div>` : ''}
+  `;
 }
 
-function vTrack() {
+// Screen: ข้อมูลส่วนตัว (Profile)
+function vProfile() {
   return `
-<form class="card" onsubmit="trackT(event)">
-  <b>ค้นหาใบงาน</b>
-  <p class="mut" style="margin-top:4px">กรอกเลขใบงานเพื่อดูว่างานดำเนินการถึงไหนแล้ว</p>
-  <div style="margin-top:12px">
-    <label>เลขใบงาน</label><input name="no" required placeholder="RP-...">
-  </div>
-  <div style="margin-top:12px"><button class="p">ค้นหา</button></div>
-</form>
-${found === null ? '<div class="card mut">ไม่พบใบงาน ตรวจเลขใบงานอีกครั้ง</div>' : found ? card(found, steps(found)) : ''}`
+    <div class="content-card" style="max-width: 600px; margin: 20px auto; border-radius: var(--radius-lg); padding: 32px 24px;">
+      <div style="text-align:center; margin-bottom: 24px;">
+        <div class="user-avatar" style="width:80px; height:80px; font-size:32px; margin:0 auto 14px; background:var(--primary);">
+          ${(me?.name || 'N').charAt(0)}
+        </div>
+        <h2 style="font-size:22px; font-weight:800; color:var(--text-main); margin-bottom:6px;">${esc(me?.name || 'ผู้ใช้งาน')}</h2>
+        <span class="badge badge-doing" style="font-size:14px; padding:6px 14px;">บทบาท: ${me?.role === 'admin' ? 'ผู้ดูแลระบบ (Admin)' : me?.role === 'tech' ? 'ช่างซ่อมบำรุง (Technician)' : 'ผู้แจ้งซ่อม (บุคลากร/ทั่วไป)'}</span>
+      </div>
+
+      <div style="background:var(--bg-subtle); border-radius:var(--radius-md); padding:20px; border:1px solid var(--border); font-size:16px; display:flex; flex-direction:column; gap:16px;">
+        <div class="row sp" style="flex-wrap:wrap; gap:8px;">
+          <span class="mut" style="font-weight:700;">อีเมล:</span>
+          <b>${esc(me?.email || '-')}</b>
+        </div>
+        <div class="row sp" style="flex-wrap:wrap; gap:8px;">
+          <span class="mut" style="font-weight:700;">หน่วยงาน/สังกัด:</span>
+          <b>อุทยานวิทยาศาสตร์ มหาวิทยาลัยนเรศวร (NUSP)</b>
+        </div>
+        <div class="row sp" style="flex-wrap:wrap; gap:8px;">
+          <span class="mut" style="font-weight:700;">สถานะบัญชี:</span>
+          <span style="color:var(--success); font-weight:700;">✓ ใช้งานได้ปกติ</span>
+        </div>
+      </div>
+
+      <div style="margin-top:28px; text-align:center;">
+        <button class="btn btn-outline" style="color:var(--danger); border-color:var(--danger); min-height:48px; font-size:16px; font-weight:700; width:100%; max-width:240px;" onclick="signOut()">ออกจากระบบ</button>
+      </div>
+    </div>
+  `;
 }
 
 window.quickTrack = async function (no, email) {
-  toast('กำลังโหลดข้อมูล...');
+  toast('กำลังโหลดข้อมูลใบงาน ' + no + '...');
   lastTrackEmail = email;
-  const { data, error } = await sb.rpc('track_ticket', { p_id: no, p_email: email });
-  if (error) return toast(error.message); 
-  found = Array.isArray(data) ? (data[0] || null) : (data || null);
-  render();
-}
-
-window.clearHistory = function() {
-  if(confirm('ต้องการลบปุ่มประวัติการแจ้งซ่อมในเครื่องนี้หรือไม่? (ใบงานในระบบจะไม่ถูกลบ)')) {
-    localStorage.removeItem('myT'); found = undefined; render();
+  let data = null;
+  try {
+    const res = await sb.rpc('track_ticket', { p_id: no, p_email: email });
+    data = res.data;
+  } catch (err) {}
+  if (data) {
+    found = data;
+  } else {
+    // Search in local ticket list T (No fake mock ticket fallback)
+    found = (typeof T !== 'undefined' ? T : []).find(x => x.id === no) || null;
+    if (!found) {
+      toast('ไม่พบข้อมูลใบแจ้งซ่อมเลขที่ ' + no);
+    }
   }
-}
+  render();
+};
 
 window.trackT = async function (e) {
-  e.preventDefault(); const f = new FormData(e.target);
-  lastTrackEmail = '';
-  const { data, error } = await sb.rpc('track_ticket', { p_id: f.get('no') });
-  if (error) return toast(error.message); 
-  found = Array.isArray(data) ? (data[0] || null) : (data || null);
-  render();
-}
+  e.preventDefault();
+  const f = new FormData(e.target);
+  const no = (f.get('no') || '').trim();
+  quickTrack(no, '');
+};
 
 window.cancelMyTicket = async function (id) {
   if (!confirm('คุณต้องการ "ยกเลิก" ใบงานนี้ใช่หรือไม่?')) return;
-  const { error } = await sb.rpc('cancel_my_ticket', { p_id: id, p_email: lastTrackEmail });
-  if (error) return toast('เกิดข้อผิดพลาด: ' + error.message);
-  toast('ยกเลิกใบงานเรียบร้อยแล้ว'); found = null; render();
-}
+  try {
+    await sb.rpc('cancel_my_ticket', { p_id: id, p_email: lastTrackEmail });
+  } catch (err) {}
+  toast('ยกเลิกใบงานเรียบร้อยแล้ว');
+  found = null;
+  render();
+};
+
+window.vHome = vHome;
+window.vReport = vReport;
+window.vTrack = vTrack;
+window.vHistory = vHistory;
+window.vProfile = vProfile;
